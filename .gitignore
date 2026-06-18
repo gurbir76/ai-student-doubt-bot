@@ -1,0 +1,33 @@
+# Environment variables / secrets
+.env
+*.env
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local vector database
+vector_db/
+vector_db_backup/
+chroma.sqlite3
+
+# Raw and intermediate knowledge-building files
+raw_sources/
+extracted_sources/
+draft_knowledge_base/
+
+# Local-only helper scripts for KB preparation
+extract_sources.py
+build_knowledge_base.py
+
+# OS/system files
+.DS_Store
+Thumbs.db
+
+# VS Code local settings
+.vscode/
+
+# Logs
+*.log
