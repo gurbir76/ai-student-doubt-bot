@@ -1,5 +1,6 @@
 import streamlit as st
 from rag_engine import generate_answer
+from visuals import detect_visual_type, show_visual_explanation
 
 st.set_page_config(
     page_title="AI Student Doubt Resolution Bot",
@@ -181,15 +182,23 @@ if student_question:
             source = result["source"]
 
             st.write(answer)
+
+            visual_type = detect_visual_type(student_question, answer)
+
+            if visual_type:
+                with st.expander("Show visual explanation"):
+                    show_visual_explanation(visual_type)
+
             st.caption(f"Source: {source}")
 
     st.session_state.messages.append(
-        {
-            "role": "assistant",
-            "content": answer,
-            "source": source
-        }
-    )
+    {
+        "role": "assistant",
+        "content": answer,
+        "source": source,
+        "visual_type": visual_type
+    }
+)
 
 # -----------------------------
 # Footer
