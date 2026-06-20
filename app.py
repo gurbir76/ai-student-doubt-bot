@@ -183,7 +183,7 @@ if student_question:
 
             st.write(answer)
 
-            visual_type = detect_visual_type(student_question, answer)
+            visual_type = detect_visual_type(student_question)
 
             if visual_type:
                 with st.expander("Show visual explanation"):

@@ -5,11 +5,11 @@ import streamlit as st
 
 def detect_visual_type(question: str, answer: str = ""):
     """
-    Detects whether a visual should be shown based on the student's question/answer.
-    Returns a visual type string or None.
+    Detects whether a visual should be shown based only on the student's question.
+    This avoids showing graphs for greetings or bot capability responses.
     """
 
-    text = f"{question} {answer}".lower()
+    text = question.lower()
 
     if any(word in text for word in ["slope", "regression", "linear regression", "intercept"]):
         return "regression"
