@@ -6,6 +6,9 @@ from sentence_transformers import SentenceTransformer
 from groq import Groq
 from dotenv import load_dotenv
 
+# -----------------------------
+# Load API key
+# -----------------------------
 load_dotenv()
 
 groq_api_key = os.getenv("GROQ_API_KEY")
@@ -21,6 +24,11 @@ if not groq_api_key:
         "GROQ_API_KEY is missing. Add it to .env locally or Streamlit secrets online."
     )
 
+llm_client = Groq(api_key=groq_api_key)
+
+# -----------------------------
+# ChromaDB / Embedding setup
+# -----------------------------
 DB_FOLDER = "vector_db"
 KB_FOLDER = "knowledge_base"
 COLLECTION_NAME = "business_statistics_kb"
@@ -59,11 +67,13 @@ def build_vector_db_if_needed():
         content = file_path.read_text(encoding="utf-8", errors="ignore")
 
         if content.strip():
-            documents.append({
-                "id": file_path.stem,
-                "text": content,
-                "source": file_path.name
-            })
+            documents.append(
+                {
+                    "id": file_path.stem,
+                    "text": content,
+                    "source": file_path.name,
+                }
+            )
 
     if not documents:
         raise ValueError("Knowledge base files exist but no readable content was found.")
@@ -75,7 +85,7 @@ def build_vector_db_if_needed():
             ids=[doc["id"]],
             documents=[doc["text"]],
             embeddings=[embedding],
-            metadatas=[{"source": doc["source"]}]
+            metadatas=[{"source": doc["source"]}],
         )
 
     final_count = collection.count()
@@ -86,20 +96,29 @@ def build_vector_db_if_needed():
 
 client, collection = build_vector_db_if_needed()
 
-llm_client = Groq(api_key=groq_api_key)
-
+# -----------------------------
+# Guardrail keyword lists
+# -----------------------------
 OUT_OF_SCOPE_KEYWORDS = [
     "attendance",
     "fees",
+    "fee",
     "marks",
     "grade",
     "increase my marks",
     "exam answer",
     "assignment cheating",
+    "cheat",
     "write my exam",
     "personal problem",
     "harassment",
     "counselling",
+    "counseling",
+    "hostel",
+    "admission",
+    "scholarship",
+    "placement",
+    "library fine",
     "neural network",
     "neural networks",
     "machine learning",
@@ -112,51 +131,216 @@ OUT_OF_SCOPE_KEYWORDS = [
     "support vector machine",
 ]
 
-def is_out_of_scope(question):
-    question_lower = question.lower()
-    return any(keyword in question_lower for keyword in OUT_OF_SCOPE_KEYWORDS)
 
-def retrieve_context(question, top_k=3):
-    query_embedding = embedding_model.encode(question).tolist()
+GREETINGS = [
+    "hi",
+    "hii",
+    "hello",
+    "hey",
+    "helo",
+    "good morning",
+    "good afternoon",
+    "good evening",
+    "namaste",
+]
+
+
+THANKS = [
+    "thanks",
+    "thank you",
+    "thankyou",
+    "thx",
+    "ok thanks",
+    "okay thanks",
+]
+
+
+IDENTITY_QUESTIONS = [
+    "who are you",
+    "what are you",
+    "are you a chatbot",
+    "are you an ai",
+    "what is this bot",
+    "what is this chatbot",
+    "tell me about yourself",
+]
+
+
+CAPABILITY_QUESTIONS = [
+    "what can you do",
+    "how can you help",
+    "what do you do",
+    "what questions can i ask",
+    "which topics do you cover",
+    "what topics do you cover",
+    "what can i ask you",
+    "help me",
+]
+
+
+# -----------------------------
+# Helper functions
+# -----------------------------
+def normalize_text(text):
+    return text.lower().strip().replace("?", "").replace(".", "")
+
+
+def contains_any_keyword(text, keyword_list):
+    return any(keyword in text for keyword in keyword_list)
+
+
+def is_greeting(text):
+    clean_text = normalize_text(text)
+    return clean_text in GREETINGS
+
+
+def is_thanks(text):
+    clean_text = normalize_text(text)
+    return clean_text in THANKS
+
+
+def is_identity_question(text):
+    clean_text = normalize_text(text)
+    return contains_any_keyword(clean_text, IDENTITY_QUESTIONS)
+
+
+def is_capability_question(text):
+    clean_text = normalize_text(text)
+    return contains_any_keyword(clean_text, CAPABILITY_QUESTIONS)
+
+
+def is_out_of_scope(text):
+    clean_text = normalize_text(text)
+    return contains_any_keyword(clean_text, OUT_OF_SCOPE_KEYWORDS)
+
+
+# -----------------------------
+# Main answer function
+# -----------------------------
+def generate_answer(student_question):
+    question_clean = normalize_text(student_question)
+
+    # 1. Empty input
+    if not question_clean:
+        return {
+            "answer": "Please ask a Business Statistics question so I can help you.",
+            "source": "Input clarity rule triggered",
+        }
+
+    # 2. Greetings
+    if is_greeting(student_question):
+        return {
+            "answer": (
+                "Hello! I am your AI Student Doubt Resolution Bot for Business Statistics. "
+                "You can ask me questions on topics like mean, median, mode, probability, "
+                "standard deviation, hypothesis testing, p-value, correlation, and regression."
+            ),
+            "source": "Greeting rule triggered",
+        }
+
+    # 3. Identity questions
+    if is_identity_question(student_question):
+        return {
+            "answer": (
+                "I am an AI Student Doubt Resolution Bot designed to help students understand "
+                "Business Statistics concepts. I use a curated course knowledge base and provide "
+                "beginner-friendly explanations with course references."
+            ),
+            "source": "Identity rule triggered",
+        }
+
+    # 4. Capability questions
+    if is_capability_question(student_question):
+        return {
+            "answer": (
+                "I can help you with Business Statistics doubts such as:\n\n"
+                "- Mean, median, and mode\n"
+                "- Variance and standard deviation\n"
+                "- Basic and conditional probability\n"
+                "- Normal distribution\n"
+                "- Hypothesis testing\n"
+                "- P-value\n"
+                "- Correlation\n"
+                "- Simple linear regression\n\n"
+                "Please ask a specific Business Statistics question, for example: "
+                "'What is p-value?' or 'What is conditional probability?'"
+            ),
+            "source": "Capability rule triggered",
+        }
+
+    # 5. Thanks
+    if is_thanks(student_question):
+        return {
+            "answer": (
+                "You're welcome! Ask me another Business Statistics question whenever you are ready."
+            ),
+            "source": "Courtesy rule triggered",
+        }
+
+    # 6. Very short unclear input
+    if len(question_clean) < 4:
+        return {
+            "answer": (
+                "Please ask a complete Business Statistics question so I can help you properly. "
+                "For example: 'What is p-value?' or 'What is conditional probability?'"
+            ),
+            "source": "Input clarity rule triggered",
+        }
+
+    # 7. Out-of-scope guardrail
+    if is_out_of_scope(student_question):
+        return {
+            "answer": (
+                "This question is outside my Business Statistics learning scope. "
+                "Please contact your faculty or academic support team for this."
+            ),
+            "source": "Escalation rule triggered",
+        }
+
+    # 8. RAG retrieval
+    question_embedding = embedding_model.encode(student_question).tolist()
 
     results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=top_k
+        query_embeddings=[question_embedding],
+        n_results=3,
     )
 
-    documents = results.get("documents", [[]])[0]
-    metadatas = results.get("metadatas", [[]])[0]
+    retrieved_docs = results.get("documents", [[]])[0]
+    retrieved_metadatas = results.get("metadatas", [[]])[0]
 
-    return documents, metadatas
-
-def generate_answer(question):
-    if is_out_of_scope(question):
+    if not retrieved_docs:
         return {
-            "answer": "This question is outside my Business Statistics learning scope. Please contact your faculty or academic support team for this.",
-            "source": "Escalation rule triggered"
+            "answer": (
+                "I could not find this topic in my approved Business Statistics knowledge base. "
+                "Please ask your faculty or academic support team for guidance."
+            ),
+            "source": "No relevant source found",
         }
 
-    documents, metadatas = retrieve_context(question)
+    context = "\n\n".join(retrieved_docs)
 
-    if not documents:
-        return {
-            "answer": "I could not find this topic in the approved Business Statistics knowledge base. Please ask your instructor for help.",
-            "source": "No matching knowledge base content"
-        }
+    source_files = []
+    for metadata in retrieved_metadatas:
+        if metadata and "source" in metadata:
+            source_files.append(metadata["source"])
 
-    context = "\n\n".join(documents)
-    sources = ", ".join([metadata["source"] for metadata in metadatas])
+    unique_sources = list(dict.fromkeys(source_files))
+    source_text = ", ".join(unique_sources) if unique_sources else "Knowledge base"
 
+    # 9. LLM response
     system_prompt = """
-You are an AI teaching assistant for Business Statistics students.
-You must answer only using the provided course context.
-Your audience is first-year MBA or undergraduate management students.
-Use simple beginner-friendly language.
-Do not hallucinate.
-If the context does not support the answer, say that the doubt should be escalated to the instructor.
-Never create fake citations, fake chapter numbers, fake textbook names, or fake page numbers.
+You are an AI Student Doubt Resolution Bot for Business Statistics.
 
-Use this exact answer format with clear headings:
+You must follow these rules:
+- Answer only using the provided course context.
+- Do not answer questions outside Business Statistics.
+- Do not help with cheating, exams, marks, fees, attendance, admissions, or personal issues.
+- Use simple beginner-friendly language.
+- If the answer is not available in the context, say that the topic is not available in the approved knowledge base.
+- Do not invent facts or sources.
+- Keep the answer clear, structured, and useful for first-year MBA or undergraduate management students.
+
+Use this exact answer format:
 
 ### 1. Short Answer
 Write 1-2 simple sentences.
@@ -165,38 +349,49 @@ Write 1-2 simple sentences.
 Explain in beginner-friendly language.
 
 ### 3. Formula or Steps
-Give formula or decision rule if applicable.
+Give formula, rule, or steps if applicable. If not applicable, write: Not applicable.
 
 ### 4. Example
 Give a small simple example.
 
 ### 5. Course Reference
-Write only one line in this format:
 Course Reference: <most relevant topic/source from retrieved context>
-Do not create extra headings under Course Reference.
 
 ### 6. Follow-up Question
 Ask one useful learning question.
 """
 
     user_prompt = f"""
-Student Question:
-{question}
+Student question:
+{student_question}
 
-Course Context:
+Course context:
 {context}
 """
 
-    response = llm_client.chat.completions.create(
-        model="llama-3.1-8b-instant",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        temperature=0.2
-    )
+    try:
+        response = llm_client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.2,
+            max_tokens=700,
+        )
 
-    return {
-        "answer": response.choices[0].message.content,
-        "source": sources
-    }
+        answer = response.choices[0].message.content
+
+        return {
+            "answer": answer,
+            "source": source_text,
+        }
+
+    except Exception as e:
+        return {
+            "answer": (
+                "I faced a technical issue while generating the answer. "
+                "Please try again after some time."
+            ),
+            "source": f"LLM error: {str(e)}",
+        }
