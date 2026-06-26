@@ -26,6 +26,19 @@ if not groq_api_key:
 
 llm_client = Groq(api_key=groq_api_key)
 
+llm_client = Groq(api_key=groq_api_key)
+
+# -----------------------------
+# Load Groq model
+# -----------------------------
+groq_model = os.getenv("GROQ_MODEL")
+
+if not groq_model:
+    try:
+        groq_model = st.secrets["GROQ_MODEL"]
+    except Exception:
+        groq_model = "llama-3.3-70b-versatile"
+
 # -----------------------------
 # ChromaDB / Embedding setup
 # -----------------------------
@@ -371,7 +384,7 @@ Course context:
 
     try:
         response = llm_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model=groq_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
