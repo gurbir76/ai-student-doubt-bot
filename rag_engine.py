@@ -1,10 +1,12 @@
 import os
+import time
 import streamlit as st
 import chromadb
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
 from groq import Groq
 from dotenv import load_dotenv
+from observability import observe_generation, flush_langfuse
 
 # -----------------------------
 # Load API key
@@ -26,7 +28,6 @@ if not groq_api_key:
 
 llm_client = Groq(api_key=groq_api_key)
 
-llm_client = Groq(api_key=groq_api_key)
 
 # -----------------------------
 # Load Groq model
@@ -230,7 +231,9 @@ def is_out_of_scope(text):
 # -----------------------------
 # Main answer function
 # -----------------------------
+@observe_generation
 def generate_answer(student_question):
+    start_time=time.time()
     question_clean = normalize_text(student_question)
 
     # 1. Empty input
@@ -405,16 +408,44 @@ Course context:
 
         answer = response.choices[0].message.content
 
+        latency_ms = int((time.time() - start_time) * 1000)
+
+        usage = getattr(response, "usage", None)
+
+        input_tokens = getattr(usage, "prompt_tokens", None) if usage else None
+        output_tokens = getattr(usage, "completion_tokens", None) if usage else None
+        total_tokens = getattr(usage, "total_tokens", None) if usage else None
+
+        
+        flush_langfuse()
+        
+
         return {
             "answer": answer,
             "source": source_text,
+            "model_used": groq_model,
+            "latency_ms": latency_ms,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total_tokens,
         }
 
     except Exception as e:
+        latency_ms = int((time.time() - start_time) * 1000)
+
+        error_answer = (
+            "I faced a technical issue while generating the answer. "
+            "Please try again after some time."
+        )
+
+        flush_langfuse()
+
         return {
-            "answer": (
-                "I faced a technical issue while generating the answer. "
-                "Please try again after some time."
-            ),
+            "answer": error_answer,
             "source": f"LLM error: {str(e)}",
+            "model_used": groq_model,
+            "latency_ms": latency_ms,
+            "input_tokens": None,
+            "output_tokens": None,
+            "total_tokens": None,
         }
