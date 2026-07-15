@@ -2,10 +2,12 @@ import os
 import time
 import streamlit as st
 import chromadb
+import uuid
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
 from groq import Groq
 from dotenv import load_dotenv
+from observability import observe_generation, flush_langfuse, get_active_trace_id
 from observability import observe_generation, flush_langfuse
 
 # -----------------------------
@@ -234,6 +236,7 @@ def is_out_of_scope(text):
 @observe_generation
 def generate_answer(student_question):
     start_time=time.time()
+    feedback_id = str(uuid.uuid4())
     question_clean = normalize_text(student_question)
 
     # 1. Empty input
@@ -417,6 +420,8 @@ Course context:
         total_tokens = getattr(usage, "total_tokens", None) if usage else None
 
         
+        trace_id = get_active_trace_id()
+
         flush_langfuse()
         
 
@@ -428,6 +433,7 @@ Course context:
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "total_tokens": total_tokens,
+            "feedback_id": feedback_id,
         }
 
     except Exception as e:
@@ -438,6 +444,8 @@ Course context:
             "Please try again after some time."
         )
 
+        trace_id = get_active_trace_id()
+        
         flush_langfuse()
 
         return {
@@ -448,4 +456,5 @@ Course context:
             "input_tokens": None,
             "output_tokens": None,
             "total_tokens": None,
+            "feedback_id": feedback_id,
         }

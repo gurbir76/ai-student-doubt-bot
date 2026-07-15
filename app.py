@@ -1,6 +1,7 @@
 import streamlit as st
 from rag_engine import generate_answer
 from visuals import detect_visual_type, show_visual_explanation
+from observability import log_user_feedback
 
 st.set_page_config(
     page_title="AI Student Doubt Resolution Bot",
@@ -152,12 +153,57 @@ if not st.session_state.messages:
 # -----------------------------
 # Display chat history
 # -----------------------------
-for message in st.session_state.messages:
+for idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
-        if message["role"] == "assistant" and message.get("source"):
-            st.caption(f"Source: {message['source']}")
+        if message["role"] == "assistant":
+            visual_type = message.get("visual_type")
+
+            if visual_type:
+                with st.expander("Show visual explanation"):
+                    show_visual_explanation(visual_type)
+
+            source = message.get("source", "N/A")
+            model_used = message.get("model_used", "N/A")
+            latency_ms = message.get("latency_ms", "N/A")
+            input_tokens = message.get("input_tokens", "N/A")
+            output_tokens = message.get("output_tokens", "N/A")
+            feedback_id = message.get("feedback_id")
+
+            st.caption(
+                f"Source: {source} | Model: {model_used} | Latency: {latency_ms} ms | "
+                f"Input tokens: {input_tokens} | Output tokens: {output_tokens}"
+            )
+
+            if feedback_id and not message.get("feedback_given", False):
+                col1, col2, col3 = st.columns([1, 1, 5])
+
+                with col1:
+                    if st.button("👍 Helpful", key=f"helpful_{idx}_{feedback_id}"):
+                        log_user_feedback(
+                            trace_id=feedback_id,
+                            feedback_value="helpful",
+                            comment="User marked answer as helpful"
+                        )
+                        st.session_state.messages[idx]["feedback_given"] = True
+                        st.session_state.messages[idx]["feedback_value"] = "Helpful"
+                        st.rerun()
+
+                with col2:
+                    if st.button("👎 Not helpful", key=f"not_helpful_{idx}_{feedback_id}"):
+                        log_user_feedback(
+                            trace_id=feedback_id,
+                            feedback_value="not_helpful",
+                            comment="User marked answer as not helpful"
+                        )
+                        st.session_state.messages[idx]["feedback_given"] = True
+                        st.session_state.messages[idx]["feedback_value"] = "Not helpful"
+                        st.rerun()
+
+            elif message.get("feedback_given", False):
+                feedback_value = message.get("feedback_value", "recorded")
+                st.caption(f"Feedback recorded: {feedback_value}")
 
 # -----------------------------
 # Chat input
@@ -178,27 +224,42 @@ if student_question:
     with st.chat_message("assistant"):
         with st.spinner("Searching approved course material..."):
             result = generate_answer(student_question)
+
             answer = result["answer"]
             source = result["source"]
+            model_used = result.get("model_used", "N/A")
+            latency_ms = result.get("latency_ms", "N/A")
+            input_tokens = result.get("input_tokens", "N/A")
+            output_tokens = result.get("output_tokens", "N/A")
+            visual_type = detect_visual_type(student_question)
 
             st.write(answer)
-
-            visual_type = detect_visual_type(student_question)
 
             if visual_type:
                 with st.expander("Show visual explanation"):
                     show_visual_explanation(visual_type)
 
-            st.caption(f"Source: {source}")
+            st.caption(
+                f"Source: {source} | Model: {model_used} | Latency: {latency_ms} ms | "
+                f"Input tokens: {input_tokens} | Output tokens: {output_tokens}"
+            )
 
     st.session_state.messages.append(
-    {
-        "role": "assistant",
-        "content": answer,
-        "source": source,
-        "visual_type": visual_type
-    }
-)
+        {
+            "role": "assistant",
+            "content": answer,
+            "source": source,
+            "visual_type": visual_type,
+            "model_used": model_used,
+            "latency_ms": latency_ms,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "feedback_id": result.get("feedback_id"),
+            "feedback_given": False,
+        }
+    )
+
+    st.rerun()
 
 # -----------------------------
 # Footer
