@@ -2,13 +2,12 @@ import os
 import time
 import streamlit as st
 import chromadb
-import uuid
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
 from groq import Groq
 from dotenv import load_dotenv
 from observability import observe_generation, flush_langfuse, get_active_trace_id
-from observability import observe_generation, flush_langfuse
+from model_router import route_model
 
 # -----------------------------
 # Load API key
@@ -236,7 +235,6 @@ def is_out_of_scope(text):
 @observe_generation
 def generate_answer(student_question):
     start_time=time.time()
-    feedback_id = str(uuid.uuid4())
     question_clean = normalize_text(student_question)
 
     # 1. Empty input
@@ -315,6 +313,17 @@ def generate_answer(student_question):
             ),
             "source": "Escalation rule triggered",
         }
+
+    routing_result = route_model(student_question)
+
+    selected_model = routing_result.get("model", groq_model)
+    routing_type = routing_result.get("route", "default")
+    routing_reason = routing_result.get(
+    "reason",
+    "Fallback to configured Groq model"
+        )
+
+# 8. RAG retrieval
 
     # 8. RAG retrieval
     question_embedding = embedding_model.encode(student_question).tolist()
@@ -400,7 +409,7 @@ Course context:
 
     try:
         response = llm_client.chat.completions.create(
-            model=groq_model,
+            model=selected_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -428,12 +437,14 @@ Course context:
         return {
             "answer": answer,
             "source": source_text,
-            "model_used": groq_model,
+            "model_used": selected_model,
+            "routing_type": routing_type,
+            "routing_reason": routing_reason,
             "latency_ms": latency_ms,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "total_tokens": total_tokens,
-            "feedback_id": feedback_id,
+            "feedback_id": trace_id,
         }
 
     except Exception as e:
@@ -451,10 +462,12 @@ Course context:
         return {
             "answer": error_answer,
             "source": f"LLM error: {str(e)}",
-            "model_used": groq_model,
+            "model_used": selected_model,
+            "routing_type": routing_type,
+            "routing_reason": routing_reason,
             "latency_ms": latency_ms,
             "input_tokens": None,
             "output_tokens": None,
             "total_tokens": None,
-            "feedback_id": feedback_id,
+            "feedback_id": trace_id,
         }

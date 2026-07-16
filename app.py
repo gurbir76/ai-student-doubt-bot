@@ -166,13 +166,17 @@ for idx, message in enumerate(st.session_state.messages):
 
             source = message.get("source", "N/A")
             model_used = message.get("model_used", "N/A")
+            routing_type = message.get("routing_type", "N/A")
+            routing_reason = message.get("routing_reason", "N/A")
             latency_ms = message.get("latency_ms", "N/A")
             input_tokens = message.get("input_tokens", "N/A")
             output_tokens = message.get("output_tokens", "N/A")
             feedback_id = message.get("feedback_id")
 
             st.caption(
-                f"Source: {source} | Model: {model_used} | Latency: {latency_ms} ms | "
+                f"Source: {source} | Model: {model_used} | "
+                f"Route: {routing_type} | Reason: {routing_reason} | "
+                f"Latency: {latency_ms} ms | "
                 f"Input tokens: {input_tokens} | Output tokens: {output_tokens}"
             )
 
@@ -228,6 +232,8 @@ if student_question:
             answer = result["answer"]
             source = result["source"]
             model_used = result.get("model_used", "N/A")
+            routing_type = result.get("routing_type", "N/A")
+            routing_reason = result.get("routing_reason", "N/A")
             latency_ms = result.get("latency_ms", "N/A")
             input_tokens = result.get("input_tokens", "N/A")
             output_tokens = result.get("output_tokens", "N/A")
@@ -240,7 +246,9 @@ if student_question:
                     show_visual_explanation(visual_type)
 
             st.caption(
-                f"Source: {source} | Model: {model_used} | Latency: {latency_ms} ms | "
+                f"Source: {source} | Model: {model_used} | "
+                f"Route: {routing_type} | Reason: {routing_reason} | "
+                f"Latency: {latency_ms} ms | "
                 f"Input tokens: {input_tokens} | Output tokens: {output_tokens}"
             )
 
@@ -251,6 +259,8 @@ if student_question:
             "source": source,
             "visual_type": visual_type,
             "model_used": model_used,
+            "routing_type": routing_type,
+            "routing_reason": routing_reason,
             "latency_ms": latency_ms,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
