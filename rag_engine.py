@@ -229,11 +229,50 @@ def is_out_of_scope(text):
     return contains_any_keyword(clean_text, OUT_OF_SCOPE_KEYWORDS)
 
 
+def get_preferred_source(question: str):
+    """
+    Returns the most relevant knowledge-base filename
+    for clearly identified Business Statistics topics.
+    """
+    text = normalize_text(question)
+
+    topic_source_map = {
+        "standard deviation": "03_variance_standard_deviation.md",
+        "conditional probability": "05_conditional_probability.md",
+        "normal distribution": "06_normal_distribution.md",
+        "hypothesis testing": "07_hypothesis_testing.md",
+        "linear regression": "10_simple_linear_regression.md",
+        "p-value": "08_p_value.md",
+        "p value": "08_p_value.md",
+        "correlation": "09_correlation.md",
+        "regression": "10_simple_linear_regression.md",
+        "variance": "03_variance_standard_deviation.md",
+        "probability": "04_basic_probability.md",
+        "median": "02_mean_median_mode.md",
+        "mode": "02_mean_median_mode.md",
+        "mean": "02_mean_median_mode.md",
+    }
+
+    # Longer phrases are checked first.
+    sorted_topics = sorted(
+        topic_source_map.keys(),
+        key=len,
+        reverse=True
+    )
+
+    for topic in sorted_topics:
+        if topic in text:
+            return topic_source_map[topic]
+
+    return None
+
+
 # -----------------------------
 # Main answer function
 # -----------------------------
 @observe_generation
 def generate_answer(student_question):
+    
     start_time=time.time()
     question_clean = normalize_text(student_question)
 
@@ -323,18 +362,38 @@ def generate_answer(student_question):
     "Fallback to configured Groq model"
         )
 
-# 8. RAG retrieval
 
     # 8. RAG retrieval
     question_embedding = embedding_model.encode(student_question).tolist()
 
     results = collection.query(
         query_embeddings=[question_embedding],
-        n_results=3,
+        n_results=2,
     )
 
     retrieved_docs = results.get("documents", [[]])[0]
     retrieved_metadatas = results.get("metadatas", [[]])[0]
+
+    preferred_source = get_preferred_source(student_question)
+
+    if preferred_source:
+        filtered_pairs = [
+            (document, metadata)
+            for document, metadata in zip(
+                retrieved_docs,
+                retrieved_metadatas
+            )
+            if metadata
+            and metadata.get("source") == preferred_source
+        ]
+
+        if filtered_pairs:
+            retrieved_docs = [
+                pair[0] for pair in filtered_pairs
+            ]
+            retrieved_metadatas = [
+                pair[1] for pair in filtered_pairs
+            ]
 
     if not retrieved_docs:
         return {
