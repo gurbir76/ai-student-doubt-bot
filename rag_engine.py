@@ -6,7 +6,7 @@ from pathlib import Path
 from sentence_transformers import SentenceTransformer
 from groq import Groq
 from dotenv import load_dotenv
-from observability import observe_generation, flush_langfuse, get_active_trace_id
+from observability import observe_generation, flush_langfuse
 from model_router import route_model
 
 # -----------------------------
@@ -488,7 +488,7 @@ Course context:
         total_tokens = getattr(usage, "total_tokens", None) if usage else None
 
         
-        trace_id = get_active_trace_id()
+        
 
         flush_langfuse()
         
@@ -503,8 +503,7 @@ Course context:
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "total_tokens": total_tokens,
-            "feedback_id": trace_id,
-        }
+            }
 
     except Exception as e:
         latency_ms = int((time.time() - start_time) * 1000)
@@ -514,7 +513,7 @@ Course context:
             "Please try again after some time."
         )
 
-        trace_id = get_active_trace_id()
+        
         
         flush_langfuse()
 
@@ -528,5 +527,4 @@ Course context:
             "input_tokens": None,
             "output_tokens": None,
             "total_tokens": None,
-            "feedback_id": trace_id,
-        }
+            }

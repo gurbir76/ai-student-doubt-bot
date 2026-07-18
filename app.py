@@ -1,7 +1,10 @@
 import streamlit as st
 from rag_engine import generate_answer
 from visuals import detect_visual_type, show_visual_explanation
-from observability import log_user_feedback
+from observability import (
+    log_user_feedback,
+    create_langfuse_trace_id,
+)
 
 st.set_page_config(
     page_title="AI Student Doubt Resolution Bot",
@@ -227,8 +230,21 @@ if student_question:
 
     with st.chat_message("assistant"):
         with st.spinner("Searching approved course material..."):
-            result = generate_answer(student_question)
 
+            trace_id = create_langfuse_trace_id()
+
+            if trace_id:
+                result = generate_answer(
+                    student_question,
+                    langfuse_trace_id=trace_id
+                )
+            else:
+                result = generate_answer(student_question)
+
+            # Attach the exact Langfuse trace ID for later feedback
+            result["feedback_id"] = trace_id
+
+            # These must be defined BEFORE appending to session state
             answer = result["answer"]
             source = result["source"]
             model_used = result.get("model_used", "N/A")
@@ -237,9 +253,10 @@ if student_question:
             latency_ms = result.get("latency_ms", "N/A")
             input_tokens = result.get("input_tokens", "N/A")
             output_tokens = result.get("output_tokens", "N/A")
-            visual_type = detect_visual_type(student_question)
 
             st.write(answer)
+
+            visual_type = detect_visual_type(student_question)
 
             if visual_type:
                 with st.expander("Show visual explanation"):
@@ -252,6 +269,7 @@ if student_question:
                 f"Input tokens: {input_tokens} | Output tokens: {output_tokens}"
             )
 
+    # This block must remain INSIDE if student_question:
     st.session_state.messages.append(
         {
             "role": "assistant",

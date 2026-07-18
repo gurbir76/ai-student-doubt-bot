@@ -47,6 +47,17 @@ def flush_langfuse():
         except Exception as e:
             print(f"Langfuse flush failed: {e}")
 
+def create_langfuse_trace_id():
+    """
+    Creates a valid Langfuse trace ID that can later be used
+    to attach feedback scores to the exact trace.
+    """
+    try:
+        return langfuse_client.create_trace_id()
+    except Exception as e:
+        print(f"Could not create Langfuse trace ID: {e}")
+        return None
+
 
 def observe_generation(func):
     """
@@ -58,37 +69,22 @@ def observe_generation(func):
     return func
 
 
-def get_active_trace_id():
-    """
-    Returns the active Langfuse trace ID created by the @observe decorator.
-    """
-    try:
-        return langfuse_client.get_current_trace_id()
-    except Exception as e:
-        print(f"Could not get active Langfuse trace ID: {e}")
-        return None
-
-
 def log_user_feedback(trace_id, feedback_value, comment=None):
-    """
-    Logs user feedback for a chatbot response.
-    feedback_value should be 'helpful' or 'not_helpful'.
-    """
-
     if not is_langfuse_configured():
-        return None
+        return False
 
     if not trace_id:
         print("Langfuse feedback logging skipped: trace_id missing")
-        return None
+        return False
 
     try:
-        score_value = 1 if feedback_value == "helpful" else 0
+        score_value = 1.0 if feedback_value == "helpful" else 0.0
 
         langfuse_client.create_score(
             trace_id=trace_id,
             name="user_feedback",
             value=score_value,
+            data_type="NUMERIC",
             comment=comment or feedback_value,
         )
 
@@ -96,5 +92,5 @@ def log_user_feedback(trace_id, feedback_value, comment=None):
         return True
 
     except Exception as e:
-        print(f"Langfuse feedback logging failed: {e}")
-        return None
+        print(f"Langfuse feedback logging failed: {type(e).__name__}: {e}")
+        return False
