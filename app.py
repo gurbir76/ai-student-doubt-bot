@@ -5,6 +5,7 @@ from observability import (
     log_user_feedback,
     create_langfuse_trace_id,
 )
+from governance import get_review_priority
 
 st.set_page_config(
     page_title="AI Student Doubt Resolution Bot",
@@ -204,13 +205,29 @@ for idx, message in enumerate(st.session_state.messages):
                             feedback_value="not_helpful",
                             comment="User marked answer as not helpful"
                         )
+
+                        review_priority = get_review_priority("not_helpful")
+
                         st.session_state.messages[idx]["feedback_given"] = True
                         st.session_state.messages[idx]["feedback_value"] = "Not helpful"
-                        st.rerun()
+                        st.session_state.messages[idx]["review_priority"] = review_priority
+                        st.session_state.messages[idx]["review_status"] = "Pending Review"
 
+                        st.rerun()
+                    
+                       
             elif message.get("feedback_given", False):
                 feedback_value = message.get("feedback_value", "recorded")
                 st.caption(f"Feedback recorded: {feedback_value}")
+
+                if feedback_value == "Not helpful":
+                    review_priority = message.get("review_priority", "High")
+                    review_status = message.get("review_status", "Pending Review")
+
+                    st.caption(
+                        f"Review priority: {review_priority} | "
+                        f"Review status: {review_status}"
+                    )
 
 # -----------------------------
 # Chat input
