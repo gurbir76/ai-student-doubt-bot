@@ -5,7 +5,7 @@ from observability import (
     log_user_feedback,
     create_langfuse_trace_id,
 )
-from governance import get_review_priority
+from governance import get_review_priority, ROOT_CAUSE_CATEGORIES
 
 st.set_page_config(
     page_title="AI Student Doubt Resolution Bot",
@@ -212,6 +212,7 @@ for idx, message in enumerate(st.session_state.messages):
                         st.session_state.messages[idx]["feedback_value"] = "Not helpful"
                         st.session_state.messages[idx]["review_priority"] = review_priority
                         st.session_state.messages[idx]["review_status"] = "Pending Review"
+                        st.session_state.messages[idx]["root_cause"] = "Pending Classification"
 
                         st.rerun()
                     
@@ -223,11 +224,48 @@ for idx, message in enumerate(st.session_state.messages):
                 if feedback_value == "Not helpful":
                     review_priority = message.get("review_priority", "High")
                     review_status = message.get("review_status", "Pending Review")
+                    root_cause = message.get("root_cause", "Pending Classification")
 
                     st.caption(
                         f"Review priority: {review_priority} | "
-                        f"Review status: {review_status}"
+                        f"Review status: {review_status} | "
+                        f"Root cause: {root_cause}"
                     )
+
+                    with st.expander("Review governance details"):
+
+                        root_cause_options = ["Pending Classification"] + ROOT_CAUSE_CATEGORIES
+
+                        selected_root_cause = st.selectbox(
+                        "Reviewer root-cause classification",
+                        root_cause_options,
+                        index=root_cause_options.index(root_cause)
+                        if root_cause in root_cause_options
+                        else 0,
+                        key=f"root_cause_{idx}_{feedback_id}"
+                    )
+
+                        if st.button(
+                            "Save Classification",
+                            key=f"save_root_cause_{idx}_{feedback_id}"
+                    ):
+                            st.session_state.messages[idx]["root_cause"] = selected_root_cause
+
+                            if selected_root_cause != "Pending Classification":
+                                st.session_state.messages[idx]["review_status"] = "Under Review"
+
+                            st.rerun()
+
+                    if (
+                        root_cause != "Pending Classification"
+                        and review_status != "Resolved"
+                    ):
+                        if st.button(
+                            "Resolve Review",
+                            key=f"resolve_review_{idx}_{feedback_id}"
+                    ):
+                            st.session_state.messages[idx]["review_status"] = "Resolved"
+                            st.rerun()
 
 # -----------------------------
 # Chat input
