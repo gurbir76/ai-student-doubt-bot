@@ -9,7 +9,7 @@ from groq import Groq
 from dotenv import load_dotenv
 
 from observability import observe_generation, flush_langfuse
-from model_router import route_model
+from model_router import route_model, BASIC_MODEL
 
 
 # -----------------------------
@@ -363,6 +363,81 @@ def get_preferred_sources(question: str):
                 matched_sources.append(source)
 
     return matched_sources
+
+
+def compare_student_attempt(
+    student_question: str,
+    student_attempt: str,
+    full_solution: str,
+):
+    """
+    Gives formative feedback on a student's attempt after the student
+    has chosen to compare it with the full solution.
+
+    This is intentionally not a grading function. It gives supportive
+    feedback about the approach, one improvement area, and a next step.
+    """
+
+    if not student_attempt or not student_attempt.strip():
+        return None
+
+    system_prompt = """
+You are a supportive Business Statistics tutor.
+
+Compare a student's attempt with the reference solution.
+Your purpose is formative learning feedback, not grading.
+
+Rules:
+- Do not give marks, percentages, grades, or pass/fail labels.
+- Do not simply repeat the full solution.
+- Be encouraging but honest.
+- Focus on the student's reasoning and method.
+- If the attempt is correct, explain briefly what was done well.
+- If the attempt is partly correct, identify the specific step to revisit.
+- If the attempt is incorrect, point to the first important misconception without being harsh.
+- Keep the feedback concise and beginner-friendly.
+
+Use exactly this format:
+
+### Reflection on Your Attempt
+**What you did well:** <one concise point>
+
+**What to revisit:** <one concise point, or "Nothing significant" if correct>
+
+**Next step:** <one short learning action>
+"""
+
+    user_prompt = f"""
+Student question:
+{student_question}
+
+Student attempt:
+{student_attempt}
+
+Reference solution:
+{full_solution}
+"""
+
+    try:
+        response = llm_client.chat.completions.create(
+            model=BASIC_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.1,
+            max_tokens=280,
+        )
+
+        return response.choices[0].message.content
+
+    except Exception as e:
+        print(f"Student attempt comparison failed: {type(e).__name__}: {e}")
+        return (
+            "### Reflection on Your Attempt\n"
+            "I could not compare your attempt right now. "
+            "You can still compare your steps with the full solution above."
+        )
 
 
 # -----------------------------

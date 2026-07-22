@@ -1,6 +1,6 @@
 import streamlit as st
 
-from rag_engine import generate_answer
+from rag_engine import generate_answer, compare_student_attempt
 from visuals import detect_visual_type, show_visual_explanation
 
 from observability import (
@@ -123,6 +123,12 @@ if "show_full_solution" not in st.session_state:
 if "try_first_message" not in st.session_state:
     st.session_state.try_first_message = False
 
+if "student_attempt" not in st.session_state:
+    st.session_state.student_attempt = ""
+
+if "attempt_submitted" not in st.session_state:
+    st.session_state.attempt_submitted = False
+
 
 # -----------------------------
 # Sidebar
@@ -183,6 +189,9 @@ with st.sidebar:
         st.session_state.show_full_solution = False
         st.session_state.try_first_message = False
 
+        st.session_state.student_attempt = ""
+        st.session_state.attempt_submitted = False
+
         st.rerun()
 
 
@@ -217,11 +226,18 @@ for idx, message in enumerate(
         message["role"]
     ):
 
-        st.write(
-            message["content"]
-        )
+        if message.get("learning_hint", False):
+            st.info(message["content"])
+        else:
+            st.write(
+                message["content"]
+            )
 
         if message["role"] == "assistant":
+
+            attempt_feedback = message.get("attempt_feedback")
+            if attempt_feedback:
+                st.markdown(attempt_feedback)
 
             visual_type = message.get(
                 "visual_type"
@@ -537,148 +553,174 @@ for idx, message in enumerate(
 
 if st.session_state.pending_learning_question:
 
-    pending_question = (
-        st.session_state
-        .pending_learning_question
-    )
-
-    pending_hint = (
-        st.session_state
-        .pending_learning_hint
-    )
+    pending_question = st.session_state.pending_learning_question
+    pending_hint = st.session_state.pending_learning_hint
 
     with st.chat_message("assistant"):
 
         # ---------------------------------
-        # Hint first
+        # Stage 1: Hint + student choice
         # ---------------------------------
         if not st.session_state.show_full_solution:
 
-            st.info(
-                f"💡 Learning Hint\n\n"
-                f"{pending_hint}"
-            )
-
             st.write(
-                "Try working through the problem "
-                "before viewing the complete solution."
+                "Would you like to try solving this yourself first, "
+                "or would you prefer to see the full solution?"
             )
 
-            col1, col2 = st.columns(
-                [1, 1]
-            )
+            # Student has not yet chosen "I'll Try First"
+            if not st.session_state.try_first_message:
 
-            with col1:
+                col1, col2 = st.columns(2)
 
-                if st.button(
-                    "Show Full Solution",
-                    key="show_full_solution_button",
-                ):
+                with col1:
+                    if st.button(
+                        "I'll Try First",
+                        key="try_first_button",
+                    ):
+                        st.session_state.try_first_message = True
+                        st.session_state.student_attempt = ""
+                        st.session_state.attempt_submitted = False
+                        st.rerun()
 
-                    st.session_state.show_full_solution = True
-                    st.session_state.try_first_message = False
+                with col2:
+                    if st.button(
+                        "Show Full Solution",
+                        key="show_full_solution_button",
+                    ):
+                        st.session_state.show_full_solution = True
+                        st.rerun()
 
-                    st.rerun()
-
-            with col2:
-
-                if st.button(
-                    "I'll Try First",
-                    key="try_first_button",
-                ):
-
-                    st.session_state.try_first_message = True
-
-                    st.rerun()
-
-            if st.session_state.try_first_message:
+            # ---------------------------------
+            # Stage 2: Student chose to try first
+            # ---------------------------------
+            else:
 
                 st.success(
-                    "Great choice. Try solving it yourself first. "
-                    "When you are ready, click "
-                    "'Show Full Solution'."
+                    "Great choice. Work through the problem "
+                    "and enter your attempt below."
                 )
 
+                student_attempt = st.text_area(
+                    "Enter your attempt:",
+                    value=st.session_state.student_attempt,
+                    placeholder=(
+                        "Write your calculation, reasoning, "
+                        "or answer here..."
+                    ),
+                    key="student_attempt_input",
+                )
+
+                if not st.session_state.attempt_submitted:
+
+                    if st.button(
+                        "Submit Attempt",
+                        key="submit_attempt_button",
+                    ):
+                        if student_attempt.strip():
+                            submitted_text = student_attempt.strip()
+
+                            st.session_state.student_attempt = submitted_text
+                            st.session_state.attempt_submitted = True
+
+                            st.session_state.messages.append(
+                                {
+                                    "role": "user",
+                                    "content": (
+                                        "My attempt:\n\n"
+                                        f"{submitted_text}"
+                                    ),
+                                    "learning_attempt": True,
+                                }
+                            )
+
+                            st.rerun()
+                        else:
+                            st.warning(
+                                "Please enter your attempt before submitting."
+                            )
+
+                    if st.button(
+                        "Show Full Solution Instead",
+                        key="show_solution_instead_button",
+                    ):
+                        st.session_state.show_full_solution = True
+                        st.rerun()
+
+                else:
+
+                    st.success(
+                        "Attempt recorded. You can now compare your work "
+                        "with the full solution."
+                    )
+
+                    if st.button(
+                        "Show Full Solution",
+                        key="show_solution_after_attempt",
+                    ):
+                        st.session_state.show_full_solution = True
+                        st.rerun()
+
         # ---------------------------------
-        # Full solution requested
+        # Stage 3: Full solution requested
         # ---------------------------------
         else:
+
+            submitted_attempt = (
+                st.session_state.student_attempt
+                if st.session_state.attempt_submitted
+                else None
+            )
 
             with st.spinner(
                 "Searching approved course material..."
             ):
 
-                trace_id = (
-                    create_langfuse_trace_id()
-                )
+                trace_id = create_langfuse_trace_id()
 
                 if trace_id:
-
                     result = generate_answer(
                         pending_question,
                         langfuse_trace_id=trace_id,
                     )
-
                 else:
-
                     result = generate_answer(
                         pending_question
                     )
 
-                result[
-                    "feedback_id"
-                ] = trace_id
+                result["feedback_id"] = trace_id
 
                 answer = result["answer"]
-
                 source = result["source"]
+                model_used = result.get("model_used", "N/A")
+                routing_type = result.get("routing_type", "N/A")
+                routing_reason = result.get("routing_reason", "N/A")
+                latency_ms = result.get("latency_ms", "N/A")
+                input_tokens = result.get("input_tokens", "N/A")
+                output_tokens = result.get("output_tokens", "N/A")
 
-                model_used = result.get(
-                    "model_used",
-                    "N/A",
+                visual_type = detect_visual_type(
+                    pending_question
                 )
 
-                routing_type = result.get(
-                    "routing_type",
-                    "N/A",
-                )
+                st.write(answer)
 
-                routing_reason = result.get(
-                    "routing_reason",
-                    "N/A",
-                )
+                attempt_feedback = None
+                if submitted_attempt:
+                    with st.spinner("Comparing your attempt with the solution..."):
+                        attempt_feedback = compare_student_attempt(
+                            student_question=pending_question,
+                            student_attempt=submitted_attempt,
+                            full_solution=answer,
+                        )
 
-                latency_ms = result.get(
-                    "latency_ms",
-                    "N/A",
-                )
-
-                input_tokens = result.get(
-                    "input_tokens",
-                    "N/A",
-                )
-
-                output_tokens = result.get(
-                    "output_tokens",
-                    "N/A",
-                )
-
-                visual_type = (
-                    detect_visual_type(
-                        pending_question
-                    )
-                )
-
-                st.write(
-                    answer
-                )
+                    if attempt_feedback:
+                        st.markdown(attempt_feedback)
 
                 if visual_type:
-
                     with st.expander(
                         "Show visual explanation"
                     ):
-
                         show_visual_explanation(
                             visual_type
                         )
@@ -693,7 +735,6 @@ if st.session_state.pending_learning_question:
                     f"Output tokens: {output_tokens}"
                 )
 
-                # Save full answer
                 st.session_state.messages.append(
                     {
                         "role": "assistant",
@@ -706,20 +747,20 @@ if st.session_state.pending_learning_question:
                         "latency_ms": latency_ms,
                         "input_tokens": input_tokens,
                         "output_tokens": output_tokens,
-                        "feedback_id": (
-                            result.get(
-                                "feedback_id"
-                            )
-                        ),
+                        "feedback_id": result.get("feedback_id"),
                         "feedback_given": False,
+                        "student_attempt": submitted_attempt,
+                        "attempt_submitted": bool(submitted_attempt),
+                        "attempt_feedback": attempt_feedback,
                     }
                 )
 
-                # Clear pending learning state
                 st.session_state.pending_learning_question = None
                 st.session_state.pending_learning_hint = None
                 st.session_state.show_full_solution = False
                 st.session_state.try_first_message = False
+                st.session_state.student_attempt = ""
+                st.session_state.attempt_submitted = False
 
                 st.rerun()
 
@@ -757,14 +798,29 @@ if student_question:
             student_question
         )
 
+        hint_message = get_hint_message(
+            student_question
+        )
+
         st.session_state.pending_learning_hint = (
-            get_hint_message(
-                student_question
-            )
+            hint_message
+        )
+
+        st.session_state.messages.append(
+            {
+                "role": "assistant",
+                "content": (
+                    "💡 Learning Hint\n\n"
+                    f"{hint_message}"
+                ),
+                "learning_hint": True,
+            }
         )
 
         st.session_state.show_full_solution = False
         st.session_state.try_first_message = False
+        st.session_state.student_attempt = ""
+        st.session_state.attempt_submitted = False
 
         st.rerun()
 
