@@ -444,7 +444,7 @@ Reference solution:
 # Main answer function
 # -----------------------------
 @observe_generation
-def generate_answer(student_question):
+def generate_answer(student_question, langfuse_trace_id=None):
 
     start_time = time.time()
 
