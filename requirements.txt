@@ -6,5 +6,5 @@ groq
 protobuf==3.20.3
 matplotlib
 numpy
-langfuse
+langfuse==4.14.0
 torchvision
