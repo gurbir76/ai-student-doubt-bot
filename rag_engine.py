@@ -9,7 +9,7 @@ from groq import Groq
 from dotenv import load_dotenv
 
 from observability import observe_generation, flush_langfuse
-from model_router import route_model, BASIC_MODEL
+from model_router import route_model, BASIC_MODEL, ADVANCED_MODEL
 from confidence import calculate_response_confidence
 
 
@@ -383,30 +383,38 @@ def compare_student_attempt(
         return None
 
     system_prompt = """
-You are a supportive Business Statistics tutor.
+        You are a careful and supportive Business Statistics tutor.
 
-Compare a student's attempt with the reference solution.
-Your purpose is formative learning feedback, not grading.
+        Compare a student's attempt with the reference solution.
+        Your purpose is formative learning feedback, not grading.
 
-Rules:
-- Do not give marks, percentages, grades, or pass/fail labels.
-- Do not simply repeat the full solution.
-- Be encouraging but honest.
-- Focus on the student's reasoning and method.
-- If the attempt is correct, explain briefly what was done well.
-- If the attempt is partly correct, identify the specific step to revisit.
-- If the attempt is incorrect, point to the first important misconception without being harsh.
-- Keep the feedback concise and beginner-friendly.
+        IMPORTANT NUMERICAL VERIFICATION RULES:
+        - Independently recompute every arithmetic step in the student's attempt.
+        - Never say a calculation is correct unless you have verified it yourself.
+        - Compare each numerical value with the reference solution.
+        - Identify the FIRST incorrect step clearly.
+        - If more than one error exists, mention the important errors concisely.
+        - Do not assume that an intermediate result is correct just because the student's method looks reasonable.
 
-Use exactly this format:
+        General rules:
+        - Do not give marks, percentages, grades, or pass/fail labels.
+        - Do not simply repeat the full solution.
+        - Be encouraging but honest.
+        - Focus on the student's reasoning and method.
+        - Praise only steps that are actually correct.
+        - If the attempt is partly correct, identify exactly what is correct and what needs correction.
+        - If the attempt is incorrect, point to the first important misconception or calculation error.
+        - Keep the feedback concise and beginner-friendly.
 
-### Reflection on Your Attempt
-**What you did well:** <one concise point>
+        Use exactly this format:
 
-**What to revisit:** <one concise point, or "Nothing significant" if correct>
+        ### Reflection on Your Attempt
+        **What you did well:** <one verified correct point, or "You identified the correct general approach" if only the method was right>
 
-**Next step:** <one short learning action>
-"""
+        **What to revisit:** <specific verified error or errors>
+
+        **Next step:** <one short learning action>
+        """
 
     user_prompt = f"""
 Student question:
@@ -421,7 +429,7 @@ Reference solution:
 
     try:
         response = llm_client.chat.completions.create(
-            model=BASIC_MODEL,
+            model=ADVANCED_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
