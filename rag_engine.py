@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 from observability import observe_generation, flush_langfuse
 from model_router import route_model, BASIC_MODEL
+from confidence import calculate_response_confidence
 
 
 # -----------------------------
@@ -912,6 +913,14 @@ Course context:
             else None
         )
 
+        confidence_result = calculate_response_confidence(
+            source=source_text,
+            routing_type=routing_type,
+            routing_reason=routing_reason,
+            preferred_source_count=len(preferred_sources),
+            retrieved_source_count=len(unique_sources),
+        )
+
         flush_langfuse()
 
         return {
@@ -920,6 +929,8 @@ Course context:
             "model_used": selected_model,
             "routing_type": routing_type,
             "routing_reason": routing_reason,
+            "confidence": confidence_result["confidence"],
+            "confidence_reason": confidence_result["reason"],
             "latency_ms": latency_ms,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,

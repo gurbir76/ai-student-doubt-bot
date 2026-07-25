@@ -11,7 +11,6 @@ SIMPLE_CONCEPT_KEYWORDS = [
     "meaning of",
     "explain briefly",
     "formula for",
-    "difference between",
     "mean",
     "median",
     "mode",
@@ -47,40 +46,63 @@ COMPLEX_REASONING_KEYWORDS = [
 ]
 
 
+COMPARISON_KEYWORDS = [
+    "difference between",
+    "compare",
+    "versus",
+    "vs",
+]
+
+
+TOPIC_KEYWORDS = [
+    "mean",
+    "median",
+    "mode",
+    "variance",
+    "standard deviation",
+    "probability",
+    "conditional probability",
+    "normal distribution",
+    "hypothesis testing",
+    "p-value",
+    "correlation",
+    "regression",
+    "linear regression",
+]
+
+
 def contains_numbers(text: str) -> bool:
-    """
-    Returns True if the question contains one or more numeric values.
-    """
     return bool(re.search(r"\d", text))
 
 
 def is_multi_part_question(text: str) -> bool:
-    """
-    Detects whether the question appears to contain multiple instructions.
-    """
     separators = [" and ", ", and ", ";", "\n"]
     return any(separator in text for separator in separators)
 
 
+def count_topic_matches(text: str) -> int:
+    matched_topics = []
+    sorted_topics = sorted(TOPIC_KEYWORDS, key=len, reverse=True)
+
+    for topic in sorted_topics:
+        if topic in text:
+            if not any(
+                topic in existing or existing in topic
+                for existing in matched_topics
+            ):
+                matched_topics.append(topic)
+
+    return len(matched_topics)
+
+
 def route_model(question: str) -> dict:
-    """
-    Selects the Groq-hosted model based on question complexity.
-
-    Returns:
-        {
-            "model": "...",
-            "route": "simple" or "advanced",
-            "reason": "..."
-        }
-    """
-
     clean_question = question.lower().strip()
 
     if not clean_question:
         return {
             "model": BASIC_MODEL,
             "route": "simple",
-            "reason": "Empty or unclear question"
+            "reason": "Empty or unclear question",
         }
 
     has_numbers = contains_numbers(clean_question)
@@ -95,9 +117,25 @@ def route_model(question: str) -> dict:
         for keyword in SIMPLE_CONCEPT_KEYWORDS
     )
 
-    multi_part = is_multi_part_question(clean_question)
+    has_comparison_keyword = any(
+        keyword in clean_question
+        for keyword in COMPARISON_KEYWORDS
+    )
 
-    # Advanced route for numerical or multi-step reasoning questions
+    multi_part = is_multi_part_question(clean_question)
+    topic_count = count_topic_matches(clean_question)
+
+    if topic_count >= 2 and (
+        has_comparison_keyword
+        or multi_part
+        or has_complex_keyword
+    ):
+        return {
+            "model": ADVANCED_MODEL,
+            "route": "advanced",
+            "reason": "Multi-topic comparison or explanation question",
+        }
+
     if has_numbers and (
         has_complex_keyword
         or multi_part
@@ -106,10 +144,9 @@ def route_model(question: str) -> dict:
         return {
             "model": ADVANCED_MODEL,
             "route": "advanced",
-            "reason": "Numerical or multi-step reasoning question"
+            "reason": "Numerical or multi-step reasoning question",
         }
 
-    # Advanced route for detailed analysis or interpretation
     if has_complex_keyword and (
         multi_part
         or len(clean_question.split()) > 12
@@ -117,20 +154,22 @@ def route_model(question: str) -> dict:
         return {
             "model": ADVANCED_MODEL,
             "route": "advanced",
-            "reason": "Complex explanation or analytical question"
+            "reason": "Complex explanation or analytical question",
         }
 
-    # Simple route for direct conceptual questions
-    if has_simple_keyword and len(clean_question.split()) <= 15:
+    if (
+        has_simple_keyword
+        and topic_count <= 1
+        and len(clean_question.split()) <= 15
+    ):
         return {
             "model": BASIC_MODEL,
             "route": "simple",
-            "reason": "Simple conceptual Business Statistics question"
+            "reason": "Simple conceptual Business Statistics question",
         }
 
-    # Safe default
     return {
         "model": ADVANCED_MODEL,
         "route": "advanced",
-        "reason": "Defaulted to stronger model for answer quality"
+        "reason": "Defaulted to stronger model for answer quality",
     }

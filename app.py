@@ -87,6 +87,69 @@ st.markdown(
 
 
 # -----------------------------
+# Response metadata display
+# -----------------------------
+def render_response_metadata(
+    source,
+    model_used,
+    routing_type,
+    routing_reason,
+    confidence,
+    confidence_reason,
+    latency_ms,
+    input_tokens,
+    output_tokens,
+):
+    """
+    Show a simple confidence summary first, then keep
+    technical details available in a compact expander.
+    """
+
+    if routing_type == "guardrail":
+        confidence = "Not Applicable"
+        confidence_reason = "Rule-based guardrail response"
+        confidence_label = "ℹ️ Response confidence: Not Applicable"
+    else:
+        if not confidence or confidence == "N/A":
+            confidence = "Unknown"
+            confidence_reason = (
+                confidence_reason
+                if confidence_reason not in {None, "", "N/A"}
+                else "Confidence evidence was not available."
+            )
+
+        confidence_icons = {
+            "High": "🟢",
+            "Medium": "🟡",
+            "Low": "🔴",
+            "Unknown": "⚪",
+        }
+
+        confidence_icon = confidence_icons.get(
+            confidence,
+            "⚪",
+        )
+
+        confidence_label = (
+            f"{confidence_icon} Response confidence: {confidence}"
+        )
+
+    st.markdown(f"**{confidence_label}**")
+
+    with st.expander("View response details"):
+        st.markdown(
+            f"**Source:** {source}\n\n"
+            f"**Model:** {model_used}\n\n"
+            f"**Route:** {routing_type}\n\n"
+            f"**Routing reason:** {routing_reason}\n\n"
+            f"**Confidence basis:** {confidence_reason}\n\n"
+            f"**Latency:** {latency_ms} ms\n\n"
+            f"**Tokens:** {input_tokens} input / "
+            f"{output_tokens} output"
+        )
+
+
+# -----------------------------
 # Header
 # -----------------------------
 st.markdown(
@@ -272,6 +335,16 @@ for idx, message in enumerate(
                 "N/A",
             )
 
+            confidence = message.get(
+                "confidence",
+                "N/A",
+            )
+
+            confidence_reason = message.get(
+                "confidence_reason",
+                "N/A",
+            )
+
             latency_ms = message.get(
                 "latency_ms",
                 "N/A",
@@ -298,14 +371,16 @@ for idx, message in enumerate(
                 False,
             ):
 
-                st.caption(
-                    f"Source: {source} | "
-                    f"Model: {model_used} | "
-                    f"Route: {routing_type} | "
-                    f"Reason: {routing_reason} | "
-                    f"Latency: {latency_ms} ms | "
-                    f"Input tokens: {input_tokens} | "
-                    f"Output tokens: {output_tokens}"
+                render_response_metadata(
+                    source=source,
+                    model_used=model_used,
+                    routing_type=routing_type,
+                    routing_reason=routing_reason,
+                    confidence=confidence,
+                    confidence_reason=confidence_reason,
+                    latency_ms=latency_ms,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
                 )
 
             # -----------------------------
@@ -695,6 +770,13 @@ if st.session_state.pending_learning_question:
                 model_used = result.get("model_used", "N/A")
                 routing_type = result.get("routing_type", "N/A")
                 routing_reason = result.get("routing_reason", "N/A")
+                confidence = result.get("confidence", "N/A")
+                confidence_reason = result.get("confidence_reason", "N/A")
+
+                if routing_type == "guardrail":
+                    confidence = "Not Applicable"
+                    confidence_reason = "Rule-based guardrail response"
+
                 latency_ms = result.get("latency_ms", "N/A")
                 input_tokens = result.get("input_tokens", "N/A")
                 output_tokens = result.get("output_tokens", "N/A")
@@ -725,14 +807,16 @@ if st.session_state.pending_learning_question:
                             visual_type
                         )
 
-                st.caption(
-                    f"Source: {source} | "
-                    f"Model: {model_used} | "
-                    f"Route: {routing_type} | "
-                    f"Reason: {routing_reason} | "
-                    f"Latency: {latency_ms} ms | "
-                    f"Input tokens: {input_tokens} | "
-                    f"Output tokens: {output_tokens}"
+                render_response_metadata(
+                    source=source,
+                    model_used=model_used,
+                    routing_type=routing_type,
+                    routing_reason=routing_reason,
+                    confidence=confidence,
+                    confidence_reason=confidence_reason,
+                    latency_ms=latency_ms,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
                 )
 
                 st.session_state.messages.append(
@@ -744,6 +828,8 @@ if st.session_state.pending_learning_question:
                         "model_used": model_used,
                         "routing_type": routing_type,
                         "routing_reason": routing_reason,
+                        "confidence": confidence,
+                        "confidence_reason": confidence_reason,
                         "latency_ms": latency_ms,
                         "input_tokens": input_tokens,
                         "output_tokens": output_tokens,
@@ -882,6 +968,20 @@ if student_question:
                     "N/A",
                 )
 
+                confidence = result.get(
+                    "confidence",
+                    "N/A",
+                )
+
+                confidence_reason = result.get(
+                    "confidence_reason",
+                    "N/A",
+                )
+
+                if routing_type == "guardrail":
+                    confidence = "Not Applicable"
+                    confidence_reason = "Rule-based guardrail response"
+
                 latency_ms = result.get(
                     "latency_ms",
                     "N/A",
@@ -917,14 +1017,16 @@ if student_question:
                             visual_type
                         )
 
-                st.caption(
-                    f"Source: {source} | "
-                    f"Model: {model_used} | "
-                    f"Route: {routing_type} | "
-                    f"Reason: {routing_reason} | "
-                    f"Latency: {latency_ms} ms | "
-                    f"Input tokens: {input_tokens} | "
-                    f"Output tokens: {output_tokens}"
+                render_response_metadata(
+                    source=source,
+                    model_used=model_used,
+                    routing_type=routing_type,
+                    routing_reason=routing_reason,
+                    confidence=confidence,
+                    confidence_reason=confidence_reason,
+                    latency_ms=latency_ms,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
                 )
 
         st.session_state.messages.append(
@@ -936,6 +1038,8 @@ if student_question:
                 "model_used": model_used,
                 "routing_type": routing_type,
                 "routing_reason": routing_reason,
+                "confidence": confidence,
+                "confidence_reason": confidence_reason,
                 "latency_ms": latency_ms,
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
