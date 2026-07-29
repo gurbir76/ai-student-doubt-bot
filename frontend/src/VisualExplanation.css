@@ -1,0 +1,228 @@
+
+/* --------------------------------
+   Optional visual explanations
+-------------------------------- */
+
+.visual-explanation {
+  margin-top: 24px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  padding-top: 18px;
+}
+
+.visual-explanation summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+  cursor: pointer;
+  color: #cfd6e3;
+  user-select: none;
+}
+
+.visual-explanation summary::-webkit-details-marker {
+  display: none;
+}
+
+.visual-summary-icon {
+  display: grid;
+  place-items: center;
+  width: 31px;
+  height: 31px;
+  border-radius: 10px;
+  background: rgba(103, 116, 255, 0.1);
+  color: #9eabff;
+}
+
+.visual-explanation summary > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.visual-explanation summary strong {
+  font-size: 0.82rem;
+}
+
+.visual-explanation summary small {
+  color: #6d7b90;
+  font-size: 0.7rem;
+}
+
+.visual-content {
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid rgba(113, 130, 255, 0.15);
+  border-radius: 17px;
+  background:
+    linear-gradient(135deg, rgba(25, 39, 68, 0.55), rgba(10, 19, 33, 0.6));
+}
+
+.visual-content-header {
+  margin-bottom: 13px;
+}
+
+.visual-content-header h3 {
+  margin: 5px 0 0;
+  font-size: 1.05rem;
+}
+
+.visual-stage {
+  min-height: 190px;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.08);
+  border-radius: 14px;
+  background: rgba(6, 13, 24, 0.55);
+}
+
+.visual-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 180px;
+}
+
+.visual-axis {
+  stroke: #445269;
+  stroke-width: 1.5;
+}
+
+.visual-line {
+  fill: none;
+  stroke: #8c9aff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.visual-point {
+  fill: #91a0ff;
+  stroke: #d7dcff;
+  stroke-width: 1;
+}
+
+.visual-point.secondary {
+  fill: #69d6c1;
+  stroke: #b8fff1;
+}
+
+.visual-dashed {
+  stroke: #82e5b0;
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+}
+
+.visual-dotted {
+  stroke: #89a8ff;
+  stroke-width: 2;
+  stroke-dasharray: 2 5;
+}
+
+.visual-mode-line {
+  stroke: #d292ff;
+  stroke-width: 2;
+  stroke-dasharray: 8 4 2 4;
+}
+
+.visual-tail {
+  fill: rgba(125, 135, 255, 0.24);
+  stroke: none;
+}
+
+.visual-label {
+  fill: #93a1b8;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.visual-insight {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 13px;
+  padding: 12px 13px;
+  border-radius: 12px;
+  background: rgba(81, 96, 177, 0.09);
+  color: #a6b1c4;
+}
+
+.visual-insight > span {
+  color: #9ca9ff;
+}
+
+.visual-insight p {
+  margin: 0;
+  line-height: 1.55;
+  font-size: 0.8rem;
+}
+
+.probability-visual {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(180px, 0.7fr);
+  gap: 18px;
+  align-items: center;
+  min-height: 165px;
+}
+
+.probability-table {
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 12px;
+}
+
+.probability-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 15px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  color: #adb8c9;
+  font-size: 0.8rem;
+}
+
+.probability-row:last-child {
+  border-bottom: 0;
+}
+
+.probability-row.header {
+  background: rgba(103, 116, 255, 0.09);
+  color: #d3d9e5;
+  font-weight: 800;
+}
+
+.probability-row.accent {
+  color: #9ee8bd;
+}
+
+.probability-formula {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 17px;
+  border: 1px solid rgba(113, 130, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(38, 53, 91, 0.24);
+}
+
+.probability-formula span {
+  color: #8d9bb0;
+  font-size: 0.76rem;
+}
+
+.probability-formula strong {
+  color: #f2f5fa;
+  font-size: 1.15rem;
+}
+
+@media (max-width: 700px) {
+  .probability-visual {
+    grid-template-columns: 1fr;
+  }
+
+  .visual-content {
+    padding: 14px;
+  }
+
+  .visual-stage {
+    padding: 8px;
+  }
+}

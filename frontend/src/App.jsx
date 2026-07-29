@@ -1,9 +1,55 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
+import VisualExplanation from "./VisualExplanation.jsx";
 import "./App.css";
+import "./VisualExplanation.css";
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://127.0.0.1:8000";
+
+const QUICK_PROMPTS = [
+  {
+    icon: "x̄",
+    title: "Mean, Median & Mode",
+    description: "Central tendency made simple",
+    prompt: "Explain the difference between mean, median and mode with a simple example.",
+  },
+  {
+    icon: "σ",
+    title: "Standard Deviation",
+    description: "Understand spread and variability",
+    prompt: "Explain variance and standard deviation with a simple example.",
+  },
+  {
+    icon: "P",
+    title: "Probability",
+    description: "Events, rules and conditional probability",
+    prompt: "What is conditional probability? Explain it with an easy example.",
+  },
+  {
+    icon: "N",
+    title: "Normal Distribution",
+    description: "Z-scores and probability areas",
+    prompt: "Explain normal distribution and z-scores in beginner-friendly language.",
+  },
+  {
+    icon: "H₀",
+    title: "Hypothesis Testing",
+    description: "p-values and decision making",
+    prompt: "Explain hypothesis testing and p-value in beginner-friendly language.",
+  },
+  {
+    icon: "↗",
+    title: "Correlation & Regression",
+    description: "Relationships and prediction",
+    prompt: "Compare correlation and simple linear regression and explain when each is used.",
+  },
+];
 
 function App() {
   const [question, setQuestion] = useState("");
+  const [activeQuestion, setActiveQuestion] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -15,27 +61,42 @@ function App() {
   const [studentAttempt, setStudentAttempt] = useState("");
   const [attemptSubmitted, setAttemptSubmitted] = useState(false);
   const [reflection, setReflection] = useState("");
+  const [recentQuestions, setRecentQuestions] = useState([]);
 
-  const askQuestion = async () => {
-    const cleanQuestion = question.trim();
-
-    if (!cleanQuestion) {
-      setError("Please enter a Business Statistics question.");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
+  const resetResponseState = () => {
     setResult(null);
     setFeedbackStatus("");
     setLearningMode(null);
     setStudentAttempt("");
     setAttemptSubmitted(false);
     setReflection("");
+    setError("");
+  };
+
+  const askQuestion = async (questionOverride = null) => {
+    const cleanQuestion = (
+      questionOverride ?? question
+    ).trim();
+
+    if (!cleanQuestion) {
+      setError("Please enter a Business Statistics question.");
+      return;
+    }
+
+    setQuestion(cleanQuestion);
+    setActiveQuestion(cleanQuestion);
+    setRecentQuestions((current) => {
+      const deduplicated = current.filter(
+        (item) => item.toLowerCase() !== cleanQuestion.toLowerCase()
+      );
+      return [cleanQuestion, ...deduplicated].slice(0, 5);
+    });
+    resetResponseState();
+    setLoading(true);
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/api/learning/hint",
+        `${API_BASE_URL}/api/learning/hint`,
         {
           method: "POST",
           headers: {
@@ -46,6 +107,12 @@ function App() {
           }),
         }
       );
+
+      if (!response.ok) {
+        throw new Error(
+          `Learning hint request failed with status ${response.status}`
+        );
+      }
 
       const data = await response.json();
 
@@ -68,10 +135,11 @@ function App() {
 
   const getFullSolution = async (questionText) => {
     setLoading(true);
+    setError("");
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/api/chat",
+        `${API_BASE_URL}/api/chat`,
         {
           method: "POST",
           headers: {
@@ -82,6 +150,12 @@ function App() {
           }),
         }
       );
+
+      if (!response.ok) {
+        throw new Error(
+          `Chat request failed with status ${response.status}`
+        );
+      }
 
       const data = await response.json();
       setResult(data);
@@ -97,6 +171,10 @@ function App() {
   };
 
   const showFullSolution = async () => {
+    if (!learningMode?.question) {
+      return;
+    }
+
     const data = await getFullSolution(
       learningMode.question
     );
@@ -108,7 +186,7 @@ function App() {
     ) {
       try {
         const response = await fetch(
-          "http://127.0.0.1:8000/api/learning/compare",
+          `${API_BASE_URL}/api/learning/compare`,
           {
             method: "POST",
             headers: {
@@ -122,6 +200,12 @@ function App() {
           }
         );
 
+        if (!response.ok) {
+          throw new Error(
+            `Comparison request failed with status ${response.status}`
+          );
+        }
+
         const compareData = await response.json();
 
         setReflection(
@@ -129,6 +213,9 @@ function App() {
         );
       } catch (err) {
         console.error(err);
+        setReflection(
+          "### Reflection on Your Attempt\nI could not compare your attempt right now."
+        );
       }
     }
 
@@ -154,15 +241,15 @@ function App() {
   };
 
   const submitFeedback = async (feedbackValue) => {
-    if (!result?.feedback_id) {
+    if (!result?.feedback_id || feedbackStatus) {
       return;
     }
 
     setFeedbackLoading(true);
 
     try {
-      await fetch(
-        "http://127.0.0.1:8000/api/feedback",
+      const response = await fetch(
+        `${API_BASE_URL}/api/feedback`,
         {
           method: "POST",
           headers: {
@@ -175,17 +262,35 @@ function App() {
               feedbackValue === "helpful"
                 ? "User marked answer as helpful"
                 : "User marked answer as not helpful",
+            question: activeQuestion,
           }),
         }
       );
 
-      setFeedbackStatus(
-        feedbackValue === "helpful"
-          ? "Helpful"
-          : "Not helpful"
-      );
+      if (!response.ok) {
+        throw new Error(
+          `Feedback request failed with status ${response.status}`
+        );
+      }
+
+      const data = await response.json();
+
+      if (data.status === "success") {
+        setFeedbackStatus(
+          feedbackValue === "helpful"
+            ? "Helpful"
+            : "Not helpful"
+        );
+      } else {
+        setFeedbackStatus(
+          "Feedback could not be recorded."
+        );
+      }
     } catch (err) {
       console.error(err);
+      setFeedbackStatus(
+        "Feedback could not be recorded."
+      );
     } finally {
       setFeedbackLoading(false);
     }
@@ -201,226 +306,468 @@ function App() {
     return "confidence-neutral";
   };
 
+  const isConversationalQuestion = () => {
+    const normalizedQuestion = activeQuestion
+      .trim()
+      .toLowerCase()
+      .replace(/[?.!]+$/, "");
+
+    const conversationalQuestions = [
+      "who are you",
+      "what are you",
+      "what can you do",
+      "hello",
+      "hi",
+      "hey",
+    ];
+
+    return conversationalQuestions.includes(normalizedQuestion);
+  };
+
+  const getAnswerTitle = () => {
+    if (isConversationalQuestion()) {
+      return "Answer";
+    }
+
+    if (learningMode) {
+      return "Full solution";
+    }
+
+    return "Here’s the explanation";
+  };
+
+  const getConfidenceLabel = () => {
+    const confidence = result?.confidence;
+
+    if (
+      !confidence ||
+      confidence.toLowerCase() === "n/a" ||
+      confidence.toLowerCase() === "not applicable"
+    ) {
+      return isConversationalQuestion()
+        ? "General response"
+        : "Confidence not applicable";
+    }
+
+    return `${confidence} confidence`;
+  };
+
+  const hasConversation =
+    Boolean(activeQuestion) ||
+    Boolean(learningMode) ||
+    Boolean(result);
+
   return (
-    <main className="app-shell">
-      <section className="hero">
-        <h1>AI Student Doubt Resolution Bot</h1>
-
-        <p>
-          Business Statistics support for first-year MBA /
-          undergraduate management students
-        </p>
-      </section>
-
-      <section className="ask-panel">
-        <input
-          value={question}
-          placeholder="Ask your Business Statistics doubt..."
-          onChange={(event) =>
-            setQuestion(event.target.value)
-          }
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              askQuestion();
-            }
-          }}
-        />
-
-        <button
-          onClick={askQuestion}
-          disabled={loading}
-        >
-          {loading ? "Thinking..." : "Ask"}
-        </button>
-      </section>
-
-      {error && (
-        <div className="error-box">
-          {error}
-        </div>
-      )}
-
-      {learningMode && (
-        <section className="learning-card">
-          <span className="learning-badge">
-            Learning-first mode
-          </span>
-
-          <h2>💡 Learning Hint</h2>
-
-          <p>{learningMode.hint}</p>
-
-          {learningMode.stage === "choice" && (
-            <>
-              <p>
-                Would you like to try solving this yourself first,
-                or would you prefer to see the full solution?
-              </p>
-
-              <div className="learning-actions">
-                <button
-                  onClick={() =>
-                    setLearningMode({
-                      ...learningMode,
-                      stage: "attempt",
-                    })
-                  }
-                >
-                  I'll Try First
-                </button>
-
-                <button
-                  className="secondary-button"
-                  onClick={showFullSolution}
-                >
-                  Show Full Solution
-                </button>
-              </div>
-            </>
-          )}
-
-          {learningMode.stage === "attempt" && (
-            <>
-              <textarea
-                className="attempt-box"
-                value={studentAttempt}
-                placeholder="Write your calculation or reasoning..."
-                onChange={(event) =>
-                  setStudentAttempt(event.target.value)
-                }
-              />
-
-              <div className="learning-actions">
-                <button onClick={submitAttempt}>
-                  Submit Attempt
-                </button>
-
-                <button
-                  className="secondary-button"
-                  onClick={showFullSolution}
-                >
-                  Show Full Solution Instead
-                </button>
-              </div>
-            </>
-          )}
-
-          {learningMode.stage === "attempt-recorded" && (
-            <>
-              <div className="attempt-recorded">
-                <strong>My attempt</strong>
-                <p>{studentAttempt}</p>
-              </div>
-
-              <div className="learning-actions">
-                <button onClick={showFullSolution}>
-                  Show Full Solution
-                </button>
-              </div>
-            </>
-          )}
+    <div className="student-app">
+      <main className="student-shell">
+        <section className="student-intro">
+          <span className="eyebrow">Student learning workspace</span>
+          <h1>Business Statistics, explained clearly.</h1>
+          <p>
+            Ask concepts, solve numerical problems, and learn through
+            course-grounded explanations and guided practice.
+          </p>
         </section>
-      )}
 
-      {result && (
-        <section className="answer-card">
-          <div className="answer-header">
-            <h2>Answer</h2>
-
-            <span
-              className={`confidence-badge ${getConfidenceClass()}`}
-            >
-              Response confidence:{" "}
-              {result.confidence ?? "N/A"}
-            </span>
-          </div>
-
-          <div className="markdown-answer">
-            <ReactMarkdown>
-              {result.answer}
-            </ReactMarkdown>
-          </div>
-
-          {reflection && (
-            <div className="reflection-card">
-              <ReactMarkdown>
-                {reflection}
-              </ReactMarkdown>
-            </div>
-          )}
-
-          <details className="response-details">
-            <summary>View response details</summary>
-
-            <div className="details-grid">
-              <div>
-                <strong>Source</strong>
-                <span>{result.source}</span>
-              </div>
-
-              <div>
-                <strong>Model</strong>
-                <span>{result.model_used}</span>
-              </div>
-
-              <div>
-                <strong>Route</strong>
-                <span>{result.routing_type}</span>
-              </div>
-
-              <div>
-                <strong>Routing reason</strong>
-                <span>{result.routing_reason}</span>
-              </div>
-
-              <div>
-                <strong>Confidence basis</strong>
-                <span>{result.confidence_reason}</span>
-              </div>
-
-              <div>
-                <strong>Latency</strong>
-                <span>{result.latency_ms} ms</span>
-              </div>
-            </div>
-          </details>
-
-          <div className="feedback-section">
-            {!feedbackStatus ? (
-              <>
-                <span className="feedback-label">
-                  Was this answer helpful?
+        {!hasConversation && (
+          <section className="learning-home">
+            <div className="home-section">
+              <div className="section-heading">
+                <div>
+                  <span className="eyebrow">Popular topics</span>
+                  <h2>What would you like to learn?</h2>
+                </div>
+                <span className="section-note">
+                  Choose a topic to start a question
                 </span>
+              </div>
 
-                <button
-                  className="feedback-button"
-                  disabled={feedbackLoading}
-                  onClick={() =>
-                    submitFeedback("helpful")
-                  }
-                >
-                  👍 Helpful
-                </button>
+              <div className="topic-grid">
+                {QUICK_PROMPTS.map((item) => (
+                  <button
+                    className="topic-card"
+                    key={item.title}
+                    onClick={() => {
+                      setQuestion(item.prompt);
+                      setError("");
+                    }}
+                  >
+                    <span className="topic-icon">{item.icon}</span>
+                    <span className="topic-copy">
+                      <strong>{item.title}</strong>
+                      <small>{item.description}</small>
+                    </span>
+                    <span className="topic-arrow">→</span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                <button
-                  className="feedback-button"
-                  disabled={feedbackLoading}
-                  onClick={() =>
-                    submitFeedback("not_helpful")
-                  }
-                >
-                  👎 Not helpful
-                </button>
-              </>
-            ) : (
-              <span className="feedback-recorded">
-                Feedback recorded: {feedbackStatus}
-              </span>
-            )}
-          </div>
+            <div className="home-section recent-section">
+              <div className="section-heading">
+                <div>
+                  <span className="eyebrow">Recent questions</span>
+                  <h2>Pick up where you left off</h2>
+                </div>
+                <span className="section-note">
+                  Current browser session
+                </span>
+              </div>
+
+              {recentQuestions.length === 0 ? (
+                <div className="recent-empty">
+                  <div className="recent-empty-icon">↺</div>
+                  <div>
+                    <strong>Your recent questions will appear here.</strong>
+                    <p>
+                      Ask a concept, numerical problem, interpretation,
+                      or comparison question to build your learning history.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="recent-list">
+                  {recentQuestions.map((item, index) => (
+                    <button
+                      className="recent-item"
+                      key={`${item}-${index}`}
+                      onClick={() => {
+                        setQuestion(item);
+                        setError("");
+                      }}
+                    >
+                      <span className="recent-index">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <span className="recent-question">{item}</span>
+                      <span className="recent-arrow">→</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        <section className="conversation-panel">
+          {activeQuestion && (
+            <div className="message-row user-row">
+              <div className="message-avatar user-avatar">You</div>
+              <div className="message-bubble user-bubble">
+                <span className="message-label">Your question</span>
+                <p>{activeQuestion}</p>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="error-box">
+              <strong>Something needs attention</strong>
+              <span>{error}</span>
+            </div>
+          )}
+
+          {learningMode && learningMode.stage !== "solution" && (
+            <div className="message-row assistant-row">
+              <div className="message-avatar assistant-avatar">AI</div>
+
+              <section className="learning-card">
+                <div className="learning-card-header">
+                  <span className="learning-icon">✦</span>
+                  <div>
+                    <span className="learning-badge">
+                      Learning-first mode
+                    </span>
+                    <h2>Pause and think first</h2>
+                  </div>
+                </div>
+
+                <div className="hint-box">
+                  <span>Hint</span>
+                  <p>{learningMode.hint}</p>
+                </div>
+
+                {learningMode.stage === "choice" && (
+                  <>
+                    <p className="learning-prompt">
+                      Would you like to work it out yourself first,
+                      or see the complete solution now?
+                    </p>
+
+                    <div className="learning-actions">
+                      <button
+                        className="primary-action"
+                        onClick={() =>
+                          setLearningMode({
+                            ...learningMode,
+                            stage: "attempt",
+                          })
+                        }
+                      >
+                        ✎ I'll Try First
+                      </button>
+
+                      <button
+                        className="secondary-button"
+                        onClick={showFullSolution}
+                      >
+                        Show Full Solution
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {learningMode.stage === "attempt" && (
+                  <>
+                    <label className="attempt-label" htmlFor="attempt">
+                      Your working
+                    </label>
+
+                    <textarea
+                      id="attempt"
+                      className="attempt-box"
+                      value={studentAttempt}
+                      placeholder="Write your calculation, reasoning, or answer here..."
+                      onChange={(event) =>
+                        setStudentAttempt(event.target.value)
+                      }
+                    />
+
+                    <div className="learning-actions">
+                      <button
+                        className="primary-action"
+                        onClick={submitAttempt}
+                      >
+                        Submit Attempt
+                      </button>
+
+                      <button
+                        className="secondary-button"
+                        onClick={showFullSolution}
+                      >
+                        Show Full Solution Instead
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {learningMode.stage === "attempt-recorded" && (
+                  <>
+                    <div className="attempt-recorded">
+                      <span className="attempt-status">✓ Attempt recorded</span>
+                      <strong>Your attempt</strong>
+                      <p>{studentAttempt}</p>
+                    </div>
+
+                    <div className="learning-actions">
+                      <button
+                        className="primary-action"
+                        onClick={showFullSolution}
+                      >
+                        Compare with Full Solution
+                      </button>
+                    </div>
+                  </>
+                )}
+              </section>
+            </div>
+          )}
+
+          {loading && (
+            <div className="message-row assistant-row">
+              <div className="message-avatar assistant-avatar">AI</div>
+              <div className="thinking-card">
+                <span className="thinking-dots">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                <div>
+                  <strong>Working on your question</strong>
+                  <small>
+                    Searching approved course material and selecting
+                    the best response path...
+                  </small>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {result && (
+            <div className="message-row assistant-row">
+              <div className="message-avatar assistant-avatar">AI</div>
+
+              <section className="answer-card">
+                <div className="answer-header">
+                  <div>
+                    <span className="answer-kicker">Course-grounded answer</span>
+                    <h2>{getAnswerTitle()}</h2>
+                  </div>
+
+                  <span
+                    className={`confidence-badge ${getConfidenceClass()}`}
+                  >
+                    <span className="confidence-dot" />
+                    {getConfidenceLabel()}
+                  </span>
+                </div>
+
+                <div className="markdown-answer">
+                  <ReactMarkdown>
+                    {result.answer}
+                  </ReactMarkdown>
+                </div>
+
+                {reflection && (
+                  <div className="reflection-card">
+                    <div className="reflection-heading">
+                      <span>↺</span>
+                      <strong>Reflection on your attempt</strong>
+                    </div>
+                    <ReactMarkdown>
+                      {reflection}
+                    </ReactMarkdown>
+                  </div>
+                )}
+
+                {result.visual_type && (
+                  <VisualExplanation
+                    visualType={result.visual_type}
+                  />
+                )}
+
+                <details className="response-details">
+                  <summary>
+                    <span>Response details</span>
+                    <small>
+                      Source, model, routing and performance
+                    </small>
+                  </summary>
+
+                  <div className="details-grid">
+                    <div>
+                      <span>Source</span>
+                      <strong>{result.source ?? "N/A"}</strong>
+                    </div>
+
+                    <div>
+                      <span>Model</span>
+                      <strong>{result.model_used ?? "N/A"}</strong>
+                    </div>
+
+                    <div>
+                      <span>Route</span>
+                      <strong>{result.routing_type ?? "N/A"}</strong>
+                    </div>
+
+                    <div>
+                      <span>Latency</span>
+                      <strong>{result.latency_ms ?? "N/A"} ms</strong>
+                    </div>
+
+                    <div>
+                      <span>Input tokens</span>
+                      <strong>{result.input_tokens ?? "N/A"}</strong>
+                    </div>
+
+                    <div>
+                      <span>Output tokens</span>
+                      <strong>{result.output_tokens ?? "N/A"}</strong>
+                    </div>
+
+                    <div className="detail-wide">
+                      <span>Routing reason</span>
+                      <strong>{result.routing_reason ?? "N/A"}</strong>
+                    </div>
+
+                    <div className="detail-wide">
+                      <span>Confidence basis</span>
+                      <strong>{result.confidence_reason ?? "N/A"}</strong>
+                    </div>
+                  </div>
+                </details>
+
+                <div className="feedback-section">
+                  {!feedbackStatus ? (
+                    <>
+                      <div className="feedback-copy">
+                        <strong>Was this explanation useful?</strong>
+                        <span>
+                          Your feedback helps improve response quality.
+                        </span>
+                      </div>
+
+                      <div className="feedback-actions">
+                        <button
+                          className="feedback-button helpful"
+                          disabled={feedbackLoading}
+                          onClick={() =>
+                            submitFeedback("helpful")
+                          }
+                        >
+                          👍 Helpful
+                        </button>
+
+                        <button
+                          className="feedback-button not-helpful"
+                          disabled={feedbackLoading}
+                          onClick={() =>
+                            submitFeedback("not_helpful")
+                          }
+                        >
+                          👎 Not helpful
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="feedback-recorded">
+                      <span>✓</span>
+                      <div>
+                        <strong>Feedback recorded</strong>
+                        <small>{feedbackStatus}</small>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </div>
+          )}
         </section>
-      )}
-    </main>
+      </main>
+
+      <div className="composer-dock">
+        <div className="composer-shell">
+          <div className="composer-icon">✦</div>
+
+          <input
+            value={question}
+            placeholder="Ask a Business Statistics question..."
+            onChange={(event) =>
+              setQuestion(event.target.value)
+            }
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !loading) {
+                askQuestion();
+              }
+            }}
+            aria-label="Ask your Business Statistics question"
+          />
+
+          <button
+            className="send-button"
+            onClick={() => askQuestion()}
+            disabled={loading}
+            aria-label="Send question"
+          >
+            {loading ? "…" : "↑"}
+          </button>
+        </div>
+
+        <p className="composer-note">
+          Grounded in the approved Business Statistics knowledge base
+        </p>
+      </div>
+    </div>
   );
 }
 
