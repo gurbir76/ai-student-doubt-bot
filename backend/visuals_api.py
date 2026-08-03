@@ -1,88 +1,87 @@
 def detect_visual_type(question: str, answer: str = "") -> str | None:
     """
-    Return a visual type only when the student's question clearly maps
-    to one of the supported Business Statistics visuals.
+    Return a visual only when the student's original question explicitly
+    names a supported Business Statistics topic.
 
-    The answer parameter is accepted for future use, but detection is
-    intentionally driven by the student's question so greetings,
-    identity questions and unrelated responses do not trigger visuals.
+    The generated answer is intentionally ignored. This prevents an
+    unrelated retrieved document or model response from triggering a
+    misleading visual.
     """
 
-    text = (question or "").strip().lower()
+    text = f" {(question or '').strip().lower()} "
 
-    if not text:
+    if not text.strip():
         return None
 
-    if any(
-        phrase in text
-        for phrase in [
-            "linear regression",
-            "regression line",
+    phrase_map = [
+        (
             "regression",
-            "slope",
-            "intercept",
-        ]
-    ):
-        return "regression"
-
-    if any(
-        phrase in text
-        for phrase in [
-            "p-value",
-            "p value",
-            "hypothesis testing",
-            "significance level",
-            "level of significance",
-        ]
-    ):
-        return "p_value"
-
-    if any(
-        phrase in text
-        for phrase in [
-            "normal distribution",
-            "bell curve",
-            "z-score",
-            "z score",
-        ]
-    ):
-        return "normal_distribution"
-
-    if any(
-        phrase in text
-        for phrase in [
-            "standard deviation",
-            "variance",
-            "data spread",
-            "spread of data",
-            "dispersion",
-        ]
-    ):
-        return "standard_deviation"
-
-    if any(
-        phrase in text
-        for phrase in [
-            "conditional probability",
+            [
+                "linear regression",
+                "regression line",
+                "simple regression",
+                "slope and intercept",
+            ],
+        ),
+        (
+            "p_value",
+            [
+                "p-value",
+                "p value",
+                "hypothesis testing",
+                "significance level",
+                "level of significance",
+            ],
+        ),
+        (
+            "normal_distribution",
+            [
+                "normal distribution",
+                "bell curve",
+                "z-score",
+                "z score",
+            ],
+        ),
+        (
+            "standard_deviation",
+            [
+                "standard deviation",
+                "variance",
+                "data spread",
+                "spread of data",
+                "dispersion",
+            ],
+        ),
+        (
             "probability",
-            "independent events",
-            "dependent events",
-            "mutually exclusive",
-        ]
-    ):
-        return "probability"
+            [
+                "conditional probability",
+                "probability",
+                "independent events",
+                "dependent events",
+                "mutually exclusive",
+            ],
+        ),
+        (
+            "central_tendency",
+            [
+                "mean",
+                "median",
+                "mode",
+                "arithmetic average",
+                "average value",
+            ],
+        ),
+    ]
 
-    if any(
-        phrase in text
-        for phrase in [
-            "mean",
-            "median",
-            "mode",
-            "arithmetic average",
-            "average value",
-        ]
-    ):
-        return "central_tendency"
+    for visual_type, phrases in phrase_map:
+        if any(
+            f" {phrase} " in text
+            or text.strip().startswith(f"{phrase} ")
+            or text.strip().endswith(f" {phrase}")
+            for phrase in phrases
+        ):
+            return visual_type
 
     return None
 

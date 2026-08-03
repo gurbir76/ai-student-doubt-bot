@@ -871,10 +871,10 @@ a {
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  background: rgba(102, 118, 255, 0.14);
-  color: #a3afff;
+  background: rgba(29, 233, 182, 0.14);
+  color: #a7ffeb;
   animation: botPulse 2.2s ease-in-out infinite;
-  box-shadow: 0 0 0 0 rgba(111, 126, 255, 0.25);
+  box-shadow: 0 0 0 0 rgba(167, 255, 235, 0.22);
 }
 
 .composer-icon::before {
@@ -884,7 +884,7 @@ a {
   border-radius: 12px;
   background: radial-gradient(
     circle,
-    rgba(130, 145, 255, 0.25),
+    rgba(167, 255, 235, 0.34),
     transparent 70%
   );
   opacity: 0;
@@ -897,7 +897,7 @@ a {
   position: absolute;
   inset: -6px;
   border-radius: 16px;
-  border: 1px solid rgba(120, 135, 255, 0.28);
+  border: 1px solid rgba(167, 255, 235, 0.52);
   opacity: 0;
   pointer-events: none;
   animation: botGlow 2.2s ease-out infinite;
@@ -907,12 +907,14 @@ a {
   0%,
   100% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(111, 126, 255, 0.18);
+    box-shadow: 0 0 0 0 rgba(167, 255, 235, 0.18);
   }
 
   50% {
     transform: scale(1.1);
-    box-shadow: 0 0 18px 5px rgba(111, 126, 255, 0.22);
+    box-shadow:
+      0 0 18px 5px rgba(167, 255, 235, 0.28),
+      0 0 30px 8px rgba(29, 233, 182, 0.12);
   }
 }
 
@@ -963,12 +965,36 @@ a {
   height: 38px;
   border: 0;
   border-radius: 12px;
-  background: linear-gradient(135deg, #6878ff, #7a5cec);
-  color: white;
+  background: #00e676;
+  color: #06131f;
   cursor: pointer;
   font-size: 1.1rem;
   font-weight: 900;
-  box-shadow: 0 8px 22px rgba(91, 104, 240, 0.24);
+  box-shadow:
+    0 8px 22px rgba(0, 230, 118, 0.28),
+    0 0 0 1px rgba(167, 255, 235, 0.18);
+  transition:
+    transform 150ms ease,
+    background 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.send-button:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.04);
+  background: #1de9b6;
+  box-shadow:
+    0 10px 26px rgba(29, 233, 182, 0.38),
+    0 0 16px rgba(167, 255, 235, 0.48);
+}
+
+.send-button:focus-visible {
+  outline: 2px solid #a7ffeb;
+  outline-offset: 3px;
+}
+
+.send-button:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+  background: #a7ffeb;
 }
 
 .send-button:disabled {

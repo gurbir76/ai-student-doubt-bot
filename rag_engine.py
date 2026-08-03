@@ -11,6 +11,11 @@ from dotenv import load_dotenv
 from observability import observe_generation, flush_langfuse
 from model_router import route_model, BASIC_MODEL, ADVANCED_MODEL
 from confidence import calculate_response_confidence
+from hallucination_score import (
+    calculate_grounding_similarity,
+    calculate_question_source_similarity,
+    calculate_runtime_assurance,
+)
 
 
 # -----------------------------
@@ -434,7 +439,7 @@ Reference solution:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=0.1,
+            temperature=0,
             max_tokens=280,
         )
 
@@ -798,6 +803,65 @@ def generate_answer(student_question, langfuse_trace_id=None):
         else "Knowledge base"
     )
 
+    question_source_similarity = (
+        calculate_question_source_similarity(
+            question=student_question,
+            context=context,
+            embedding_model=embedding_model,
+        )
+    )
+
+    # A nearest-neighbour result is not automatically a relevant result.
+    # Stop before the LLM when the approved KB does not sufficiently
+    # match the student's question.
+    if question_source_similarity < 0.45:
+        latency_ms = int(
+            (time.time() - start_time) * 1000
+        )
+
+        return {
+            "answer": (
+                "This statistical topic is not sufficiently covered "
+                "in my approved Business Statistics knowledge base. "
+                "I should not generate an unsupported explanation. "
+                "Please ask about mean, median, mode, variance, "
+                "standard deviation, probability, normal distribution, "
+                "hypothesis testing, p-value, correlation, or "
+                "simple linear regression."
+            ),
+            "source": "No relevant source found",
+            "model_used": "Rule-based",
+            "routing_type": "guardrail",
+            "routing_reason": (
+                "Unsupported topic: retrieved context was not "
+                "sufficiently relevant"
+            ),
+            "confidence": "Not Applicable",
+            "confidence_reason": (
+                "The approved knowledge base did not contain "
+                "sufficiently relevant evidence."
+            ),
+            "assurance_score": 15,
+            "hallucination_risk": "High",
+            "relevance_score": 0,
+            "grounding_score": 0,
+            "source_score": 0,
+            "guardrail_score": 15,
+            "question_source_similarity": round(
+                question_source_similarity,
+                3,
+            ),
+            "grounding_similarity": None,
+            "assurance_reason": (
+                "Question-source relevance was below the minimum "
+                "threshold, so model generation was blocked."
+            ),
+            "latency_ms": latency_ms,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+        }
+
     # -------------------------
     # 12. LLM response
     # -------------------------
@@ -869,7 +933,7 @@ Course context:
                         "content": user_prompt,
                     },
                 ],
-                temperature=0.2,
+                temperature=0,
                 max_tokens=700,
             )
         )
@@ -929,6 +993,19 @@ Course context:
             retrieved_source_count=len(unique_sources),
         )
 
+        grounding_similarity = calculate_grounding_similarity(
+            answer=answer,
+            context=context,
+            embedding_model=embedding_model,
+        )
+
+        assurance_result = calculate_runtime_assurance(
+            source=source_text,
+            question_source_similarity=question_source_similarity,
+            grounding_similarity=grounding_similarity,
+            guardrail_pass=True,
+        )
+
         flush_langfuse()
 
         return {
@@ -939,6 +1016,17 @@ Course context:
             "routing_reason": routing_reason,
             "confidence": confidence_result["confidence"],
             "confidence_reason": confidence_result["reason"],
+            "assurance_score": assurance_result["assurance_score"],
+            "hallucination_risk": assurance_result["hallucination_risk"],
+            "relevance_score": assurance_result["relevance_score"],
+            "source_score": assurance_result["source_score"],
+            "grounding_score": assurance_result["grounding_score"],
+            "guardrail_score": assurance_result["guardrail_score"],
+            "question_source_similarity": assurance_result[
+                "question_source_similarity"
+            ],
+            "grounding_similarity": assurance_result["grounding_similarity"],
+            "assurance_reason": assurance_result["assurance_reason"],
             "latency_ms": latency_ms,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,

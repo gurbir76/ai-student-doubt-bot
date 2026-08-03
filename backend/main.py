@@ -27,6 +27,7 @@ from backend.governance_store import (
     resolve_review,
 )
 from backend.visuals_api import detect_visual_type
+from hallucination_score import calculate_rule_based_assurance
 from backend.admin_auth import (
     authenticate_admin,
     create_admin_token,
@@ -131,6 +132,45 @@ def chat(request: ChatRequest):
         answer=result.get("answer") or "",
     )
 
+    assurance_score = result.get("assurance_score")
+    hallucination_risk = result.get("hallucination_risk")
+    relevance_score = result.get("relevance_score")
+    source_score = result.get("source_score")
+    grounding_score = result.get("grounding_score")
+    guardrail_score = result.get("guardrail_score")
+    question_source_similarity = result.get(
+        "question_source_similarity"
+    )
+    grounding_similarity = result.get("grounding_similarity")
+    assurance_reason = result.get("assurance_reason")
+
+    if assurance_score is None:
+        rule_assurance = calculate_rule_based_assurance(
+            routing_reason=result.get("routing_reason") or "",
+            source=result.get("source") or "",
+        )
+        assurance_score = rule_assurance["assurance_score"]
+        hallucination_risk = rule_assurance["hallucination_risk"]
+        relevance_score = rule_assurance["relevance_score"]
+        source_score = rule_assurance["source_score"]
+        grounding_score = rule_assurance["grounding_score"]
+        guardrail_score = rule_assurance["guardrail_score"]
+        question_source_similarity = rule_assurance[
+            "question_source_similarity"
+        ]
+        grounding_similarity = rule_assurance["grounding_similarity"]
+        assurance_reason = rule_assurance["assurance_reason"]
+
+    governance_review_id = None
+
+    if hallucination_risk == "High" and trace_id:
+        governance_review_id = create_review(
+            trace_id=trace_id,
+            question=request.question,
+            feedback_value="high_hallucination_risk",
+            review_priority="High",
+        )
+
     return {
         "feedback_id": trace_id,
         "answer": result.get("answer"),
@@ -140,6 +180,16 @@ def chat(request: ChatRequest):
         "routing_reason": result.get("routing_reason"),
         "confidence": result.get("confidence"),
         "confidence_reason": result.get("confidence_reason"),
+        "assurance_score": assurance_score,
+        "hallucination_risk": hallucination_risk,
+        "relevance_score": relevance_score,
+        "source_score": source_score,
+        "grounding_score": grounding_score,
+        "guardrail_score": guardrail_score,
+        "question_source_similarity": question_source_similarity,
+        "grounding_similarity": grounding_similarity,
+        "assurance_reason": assurance_reason,
+        "governance_review_id": governance_review_id,
         "latency_ms": result.get("latency_ms"),
         "input_tokens": result.get("input_tokens"),
         "output_tokens": result.get("output_tokens"),

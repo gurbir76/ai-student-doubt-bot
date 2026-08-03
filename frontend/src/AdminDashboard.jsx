@@ -404,6 +404,36 @@ function AdminDashboard() {
         </div>
       </section>
 
+      <section className="control-framework-card">
+        <div className="control-framework-icon">◎</div>
+
+        <div className="control-framework-copy">
+          <span className="section-eyebrow">
+            AI Control Framework
+          </span>
+
+          <h2>Medium autonomy</h2>
+
+          <p>
+            Answers are delivered automatically, while high-risk
+            or negatively rated responses are reviewed by an
+            administrator.
+          </p>
+        </div>
+
+        <div className="control-framework-meta">
+          <div>
+            <span>Control model</span>
+            <strong>Human on the loop</strong>
+          </div>
+
+          <div>
+            <span>Escalation path</span>
+            <strong>Flagged response → Admin review</strong>
+          </div>
+        </div>
+      </section>
+
       <section className="insight-panel">
         <div className="insight-heading">
           <div>

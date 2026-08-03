@@ -62,6 +62,7 @@ function App() {
   const [attemptSubmitted, setAttemptSubmitted] = useState(false);
   const [reflection, setReflection] = useState("");
   const [recentQuestions, setRecentQuestions] = useState([]);
+  const [conversationHistory, setConversationHistory] = useState([]);
 
   const resetResponseState = () => {
     setResult(null);
@@ -83,8 +84,19 @@ function App() {
       return;
     }
 
-    setQuestion(cleanQuestion);
+    if (activeQuestion && result) {
+      setConversationHistory((current) => [
+        ...current,
+        {
+          question: activeQuestion,
+          result,
+          reflection,
+        },
+      ]);
+    }
+
     setActiveQuestion(cleanQuestion);
+    setQuestion("");
     setRecentQuestions((current) => {
       const deduplicated = current.filter(
         (item) => item.toLowerCase() !== cleanQuestion.toLowerCase()
@@ -450,6 +462,98 @@ function App() {
         )}
 
         <section className="conversation-panel">
+          {conversationHistory.map((entry, index) => (
+            <div className="history-exchange" key={`${entry.question}-${index}`}>
+              <div className="message-row user-row">
+                <div className="message-avatar user-avatar">You</div>
+                <div className="message-bubble user-bubble">
+                  <span className="message-label">Your question</span>
+                  <p>{entry.question}</p>
+                </div>
+              </div>
+
+              <div className="message-row assistant-row">
+                <div className="message-avatar assistant-avatar">AI</div>
+
+                <section className="answer-card previous-answer-card">
+                  <div className="answer-header">
+                    <div>
+                      <span className="answer-kicker">Previous answer</span>
+                      <h2>Here’s the explanation</h2>
+                    </div>
+                  </div>
+
+                  <div className="markdown-answer">
+                    <ReactMarkdown>
+                      {entry.result?.answer ?? ""}
+                    </ReactMarkdown>
+                  </div>
+
+                  {entry.reflection && (
+                    <div className="reflection-card">
+                      <div className="reflection-heading">
+                        <span>↺</span>
+                        <strong>Reflection on your attempt</strong>
+                      </div>
+                      <ReactMarkdown>
+                        {entry.reflection}
+                      </ReactMarkdown>
+                    </div>
+                  )}
+
+                  {entry.result?.visual_type && (
+                    <VisualExplanation
+                      visualType={entry.result.visual_type}
+                    />
+                  )}
+
+                  <details className="response-details">
+                    <summary>
+                      <span>Previous response details</span>
+                      <small>Source, model and routing</small>
+                    </summary>
+
+                    <div className="details-grid">
+                      <div>
+                        <span>Source</span>
+                        <strong>{entry.result?.source ?? "N/A"}</strong>
+                      </div>
+
+                      <div>
+                        <span>Model</span>
+                        <strong>{entry.result?.model_used ?? "N/A"}</strong>
+                      </div>
+
+                      <div>
+                        <span>Route</span>
+                        <strong>{entry.result?.routing_type ?? "N/A"}</strong>
+                      </div>
+
+                      <div>
+                        <span>Latency</span>
+                        <strong>{entry.result?.latency_ms ?? "N/A"} ms</strong>
+                      </div>
+
+                      <div>
+                        <span>Assurance score</span>
+                        <strong>
+                          {entry.result?.assurance_score ?? "N/A"}/100
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>Hallucination risk</span>
+                        <strong>
+                          {entry.result?.hallucination_risk ?? "N/A"}
+                        </strong>
+                      </div>
+                    </div>
+                  </details>
+                </section>
+              </div>
+            </div>
+          ))}
+
           {activeQuestion && (
             <div className="message-row user-row">
               <div className="message-avatar user-avatar">You</div>
@@ -675,6 +779,50 @@ function App() {
                       <strong>{result.output_tokens ?? "N/A"}</strong>
                     </div>
 
+                    <div>
+                      <span>Assurance score</span>
+                      <strong>{result.assurance_score ?? "N/A"}/100</strong>
+                    </div>
+
+                    <div>
+                      <span>Hallucination risk</span>
+                      <strong>{result.hallucination_risk ?? "N/A"}</strong>
+                    </div>
+
+                    <div>
+                      <span>Question-source relevance</span>
+                      <strong>{result.relevance_score ?? "N/A"}/35</strong>
+                    </div>
+
+                    <div>
+                      <span>Answer grounding</span>
+                      <strong>{result.grounding_score ?? "N/A"}/35</strong>
+                    </div>
+
+                    <div>
+                      <span>Source availability</span>
+                      <strong>{result.source_score ?? "N/A"}/15</strong>
+                    </div>
+
+                    <div>
+                      <span>Guardrail compliance</span>
+                      <strong>{result.guardrail_score ?? "N/A"}/15</strong>
+                    </div>
+
+                    <div>
+                      <span>Question-source similarity</span>
+                      <strong>
+                        {result.question_source_similarity ?? "N/A"}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>Answer grounding similarity</span>
+                      <strong>
+                        {result.grounding_similarity ?? "N/A"}
+                      </strong>
+                    </div>
+
                     <div className="detail-wide">
                       <span>Routing reason</span>
                       <strong>{result.routing_reason ?? "N/A"}</strong>
@@ -683,6 +831,14 @@ function App() {
                     <div className="detail-wide">
                       <span>Confidence basis</span>
                       <strong>{result.confidence_reason ?? "N/A"}</strong>
+                    </div>
+
+                    <div className="detail-wide">
+                      <span>Assurance basis</span>
+                      <strong>
+                        {result.assurance_reason ??
+                          "This score is system-derived, not model self-confidence."}
+                      </strong>
                     </div>
                   </div>
                 </details>
