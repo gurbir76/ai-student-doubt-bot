@@ -83,6 +83,7 @@ def calculate_runtime_assurance(
     question_source_similarity: float,
     grounding_similarity: float,
     guardrail_pass: bool,
+    recognised_topic_match: bool = False,
 ) -> dict:
     """
     Runtime score:
@@ -100,7 +101,12 @@ def calculate_runtime_assurance(
 
     source_score = 15 if valid_source else 0
 
-    if question_source_similarity >= 0.60:
+    # A deterministic topic-to-source match is stronger evidence than
+    # embedding similarity alone. This prevents supported terminology
+    # such as H0/H1, Type I/II error and z-score from being penalised.
+    if recognised_topic_match and valid_source:
+        relevance_score = 35
+    elif question_source_similarity >= 0.60:
         relevance_score = 35
     elif question_source_similarity >= 0.45:
         relevance_score = 25
@@ -109,9 +115,11 @@ def calculate_runtime_assurance(
     else:
         relevance_score = 0
 
+    # Answers often paraphrase the source, especially worked numerical
+    # solutions. Similarity >= 0.50 is treated as meaningful grounding.
     if grounding_similarity >= 0.75:
         grounding_score = 35
-    elif grounding_similarity >= 0.55:
+    elif grounding_similarity >= 0.50:
         grounding_score = 25
     elif grounding_similarity >= 0.35:
         grounding_score = 10
@@ -131,8 +139,17 @@ def calculate_runtime_assurance(
         assurance_score
     )
 
+    relevance_basis = (
+        "recognised topic mapped to approved source"
+        if recognised_topic_match and valid_source
+        else "semantic question-source similarity"
+    )
+
     reasons = [
-        f"Question-source relevance {relevance_score}/35",
+        (
+            f"Question-source relevance {relevance_score}/35 "
+            f"({relevance_basis})"
+        ),
         f"Answer grounding {grounding_score}/35",
         f"Source availability {source_score}/15",
         f"Guardrail compliance {guardrail_score}/15",

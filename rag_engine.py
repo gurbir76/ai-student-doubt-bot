@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import streamlit as st
 import chromadb
@@ -224,12 +225,34 @@ CAPABILITY_QUESTIONS = [
 # Helper functions
 # -----------------------------
 def normalize_text(text):
-    return (
-        text.lower()
-        .strip()
-        .replace("?", "")
-        .replace(".", "")
-    )
+    """
+    Normalize natural-language and compact statistical notation so
+    topic detection works for inputs such as H0, H1, μ, α and z-score.
+    """
+    normalized = text.lower().strip()
+
+    symbol_replacements = {
+        "μ": " mu ",
+        "α": " alpha ",
+        "≠": " not equal ",
+        "≤": " less than or equal ",
+        "≥": " greater than or equal ",
+        "–": "-",
+        "—": "-",
+    }
+
+    for symbol, replacement in symbol_replacements.items():
+        normalized = normalized.replace(symbol, replacement)
+
+    normalized = normalized.replace("h₀", " h0 ")
+    normalized = normalized.replace("h₁", " h1 ")
+    normalized = normalized.replace("p–value", "p-value")
+    normalized = normalized.replace("z–score", "z-score")
+
+    normalized = re.sub(r"[^a-z0-9+\-=/ ]+", " ", normalized)
+    normalized = re.sub(r"\s+", " ", normalized)
+
+    return normalized.strip()
 
 
 def contains_any_keyword(text, keyword_list):
@@ -340,14 +363,29 @@ def get_preferred_sources(question: str):
         "standard deviation": "03_variance_standard_deviation.md",
         "conditional probability": "05_conditional_probability.md",
         "normal distribution": "06_normal_distribution.md",
+        "z-score": "06_normal_distribution.md",
+        "z score": "06_normal_distribution.md",
         "hypothesis testing": "07_hypothesis_testing.md",
-        "linear regression": "10_simple_linear_regression.md",
+        "hypothesis test": "07_hypothesis_testing.md",
+        "null hypothesis": "07_hypothesis_testing.md",
+        "alternative hypothesis": "07_hypothesis_testing.md",
+        "type i error": "07_hypothesis_testing.md",
+        "type 1 error": "07_hypothesis_testing.md",
+        "type ii error": "07_hypothesis_testing.md",
+        "type 2 error": "07_hypothesis_testing.md",
+        "critical value": "07_hypothesis_testing.md",
+        "significance level": "07_hypothesis_testing.md",
+        "h0": "07_hypothesis_testing.md",
+        "h1": "07_hypothesis_testing.md",
+        "alpha": "07_hypothesis_testing.md",
         "p-value": "08_p_value.md",
         "p value": "08_p_value.md",
+        "linear regression": "10_simple_linear_regression.md",
         "correlation": "09_correlation.md",
         "regression": "10_simple_linear_regression.md",
         "variance": "03_variance_standard_deviation.md",
         "probability": "04_basic_probability.md",
+        "arithmetic mean": "02_mean_median_mode.md",
         "median": "02_mean_median_mode.md",
         "mode": "02_mean_median_mode.md",
         "mean": "02_mean_median_mode.md",
@@ -812,9 +850,27 @@ def generate_answer(student_question, langfuse_trace_id=None):
     )
 
     # A nearest-neighbour result is not automatically a relevant result.
-    # Stop before the LLM when the approved KB does not sufficiently
-    # match the student's question.
-    if question_source_similarity < 0.45:
+    #
+    # Use a two-stage relevance rule:
+    # - similarity >= 0.45: allow normal RAG generation;
+    # - similarity 0.35-0.449 with a recognised supported topic:
+    #   allow generation because direct topic routing found an approved
+    #   source, even when semantic wording similarity is slightly lower;
+    # - similarity < 0.35, or no recognised topic in the borderline band:
+    #   block generation.
+    #
+    # This prevents false rejections such as "arithmetic mean" while
+    # continuing to block genuinely unsupported topics.
+    recognised_supported_topic = bool(
+        get_preferred_sources(student_question)
+    )
+
+    should_block_for_low_relevance = (
+        not recognised_supported_topic
+        and question_source_similarity < 0.45
+    )
+
+    if should_block_for_low_relevance:
         latency_ms = int(
             (time.time() - start_time) * 1000
         )
@@ -853,8 +909,10 @@ def generate_answer(student_question, langfuse_trace_id=None):
             ),
             "grounding_similarity": None,
             "assurance_reason": (
-                "Question-source relevance was below the minimum "
-                "threshold, so model generation was blocked."
+                "Question-source relevance was below the safe "
+                "threshold and no recognised supported topic "
+                "provided sufficient evidence, so model generation "
+                "was blocked."
             ),
             "latency_ms": latency_ms,
             "input_tokens": 0,
@@ -1004,6 +1062,7 @@ Course context:
             question_source_similarity=question_source_similarity,
             grounding_similarity=grounding_similarity,
             guardrail_pass=True,
+            recognised_topic_match=recognised_supported_topic,
         )
 
         flush_langfuse()

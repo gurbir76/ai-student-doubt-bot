@@ -127,10 +127,13 @@ def chat(request: ChatRequest):
             request.question
         )
 
-    visual_type = detect_visual_type(
-        question=request.question,
-        answer=result.get("answer") or "",
-    )
+    if result.get("routing_type") == "guardrail":
+        visual_type = None
+    else:
+        visual_type = detect_visual_type(
+            question=request.question,
+            answer=result.get("answer") or "",
+        )
 
     assurance_score = result.get("assurance_score")
     hallucination_risk = result.get("hallucination_risk")
