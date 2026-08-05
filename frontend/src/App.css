@@ -46,7 +46,7 @@ a {
 }
 
 .student-shell {
-  width: min(100% - 40px, 1180px);
+  width: min(100% - 40px, 1380px);
   margin: 0 auto;
   padding: 28px 0 72px;
 }
@@ -255,7 +255,7 @@ a {
 }
 
 .conversation-panel {
-  width: min(100%, 950px);
+  width: min(100%, 1120px);
   margin: 44px auto 0;
 }
 
@@ -845,7 +845,7 @@ a {
   z-index: 25;
   left: 50%;
   bottom: 18px;
-  width: min(calc(100% - 32px), 850px);
+  width: min(calc(100% - 32px), 980px);
   transform: translateX(-50%);
 }
 
@@ -1017,7 +1017,7 @@ a {
 
 @media (max-width: 700px) {
   .student-shell {
-    width: min(100% - 24px, 1180px);
+    width: min(100% - 24px, 1380px);
     padding-top: 20px;
   }
 

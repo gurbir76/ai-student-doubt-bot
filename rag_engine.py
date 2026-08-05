@@ -349,6 +349,70 @@ def is_obviously_out_of_scope(question: str) -> bool:
     )
 
 
+def is_numerical_statistics_question(question: str) -> bool:
+    """
+    Detect a worked numerical statistics question.
+
+    This supports assurance scoring but does not independently prove
+    that the final calculation is correct.
+    """
+    text = normalize_text(question)
+
+    has_number = bool(re.search(r"\d", text))
+    numerical_cues = [
+        "calculate",
+        "find",
+        "compute",
+        "test h0",
+        "test whether",
+        "z-score",
+        "z score",
+        "critical value",
+        "sample mean",
+        "population standard deviation",
+        "significance level",
+        "probability",
+        "variance",
+        "standard deviation",
+        "mean",
+        "median",
+        "mode",
+    ]
+
+    return has_number and any(
+        cue in text
+        for cue in numerical_cues
+    )
+
+
+def has_structured_calculation_evidence(answer: str) -> bool:
+    """
+    Check whether a numerical answer shows formula-based working
+    instead of only stating an unsupported final value.
+    """
+    text = (answer or "").lower()
+
+    has_number = bool(re.search(r"\d", text))
+    has_operator = bool(
+        re.search(r"[=+\-*/√]|\bsqrt\b", text)
+    )
+    has_working_language = any(
+        cue in text
+        for cue in [
+            "formula",
+            "substitute",
+            "calculation",
+            "critical value",
+            "therefore",
+            "reject",
+            "fail to reject",
+            "final answer",
+        ]
+    )
+
+    return has_number and has_operator and has_working_language
+
+
 def get_preferred_sources(question: str):
     """
     Returns a list of the most relevant knowledge-base filenames
@@ -400,7 +464,11 @@ def get_preferred_sources(question: str):
     )
 
     for topic in sorted_topics:
-        if topic in text:
+        # Match complete topic terms only. This prevents false matches
+        # such as "mode" inside the word "model".
+        topic_pattern = rf"(?<![a-z0-9]){re.escape(topic)}(?![a-z0-9])"
+
+        if re.search(topic_pattern, text):
             source = topic_source_map[topic]
 
             if source not in matched_sources:
@@ -947,23 +1015,31 @@ For numerical Business Statistics questions:
 
 Use this exact answer format:
 
-### 1. Short Answer
-Write 1-2 simple sentences.
+### 1. Answer
+Give a clear direct answer in 2-3 simple sentences.
 
-### 2. Simple Explanation
-Explain in beginner-friendly language.
+### 2. Explanation
+Explain the concept in beginner-friendly language using one or two short paragraphs.
+Include the key idea, why it matters, and any important interpretation or limitation supported by the context.
+Do not repeat the direct answer unnecessarily.
 
 ### 3. Formula or Steps
-Give formula, rule, or steps if applicable. If not applicable, write: Not applicable.
+Give the formula, rule, or ordered steps if applicable.
+For numerical questions, show substitution and intermediate calculations clearly.
+If not applicable, write: Not applicable.
 
 ### 4. Example
-Give a small simple example.
+If the student's question already contains a complete real-world scenario,
+continue with that same scenario and briefly interpret the result.
+Do not introduce an unrelated second scenario.
+Only create a new practical example when the original question is conceptual
+and does not already provide one.
 
 ### 5. Course Reference
 Course Reference: <most relevant topic/source from retrieved context>
 
 ### 6. Follow-up Question
-Ask one useful learning question.
+Ask one concise learning question that helps the student apply the concept.
 """
 
     user_prompt = f"""
@@ -992,7 +1068,7 @@ Course context:
                     },
                 ],
                 temperature=0,
-                max_tokens=700,
+                max_tokens=850,
             )
         )
 
@@ -1057,12 +1133,21 @@ Course context:
             embedding_model=embedding_model,
         )
 
+        numerical_question = is_numerical_statistics_question(
+            student_question
+        )
+        structured_calculation = (
+            has_structured_calculation_evidence(answer)
+        )
+
         assurance_result = calculate_runtime_assurance(
             source=source_text,
             question_source_similarity=question_source_similarity,
             grounding_similarity=grounding_similarity,
             guardrail_pass=True,
             recognised_topic_match=recognised_supported_topic,
+            numerical_question=numerical_question,
+            structured_calculation=structured_calculation,
         )
 
         flush_langfuse()

@@ -13,6 +13,28 @@ def detect_visual_type(question: str, answer: str = "") -> str | None:
     if not text.strip():
         return None
 
+    # Worked hypothesis tests need a rejection-region visual, which is
+    # not currently supported. Do not substitute a generic standard-
+    # deviation, normal-distribution, or p-value visual.
+    hypothesis_test_cues = [
+        "test whether",
+        "test h0",
+        "null hypothesis",
+        "alternative hypothesis",
+        "critical value",
+        "reject h0",
+        "fail to reject",
+        "significance level",
+    ]
+
+    is_worked_hypothesis_test = (
+        any(cue in text for cue in hypothesis_test_cues)
+        and any(character.isdigit() for character in text)
+    )
+
+    if is_worked_hypothesis_test:
+        return None
+
     phrase_map = [
         (
             "regression",

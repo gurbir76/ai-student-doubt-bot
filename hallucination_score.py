@@ -84,6 +84,8 @@ def calculate_runtime_assurance(
     grounding_similarity: float,
     guardrail_pass: bool,
     recognised_topic_match: bool = False,
+    numerical_question: bool = False,
+    structured_calculation: bool = False,
 ) -> dict:
     """
     Runtime score:
@@ -126,6 +128,22 @@ def calculate_runtime_assurance(
     else:
         grounding_score = 0
 
+    # Formula substitutions and worked calculations may have low raw
+    # semantic similarity even when they use the correct approved topic.
+    # Give a minimum meaningful grounding band when the answer shows
+    # structured calculation evidence. This is supporting evidence,
+    # not a guarantee that every arithmetic step is correct.
+    numerical_evidence_used = (
+        numerical_question
+        and structured_calculation
+        and recognised_topic_match
+        and valid_source
+        and grounding_score < 25
+    )
+
+    if numerical_evidence_used:
+        grounding_score = 25
+
     guardrail_score = 15 if guardrail_pass else 0
 
     assurance_score = (
@@ -145,12 +163,21 @@ def calculate_runtime_assurance(
         else "semantic question-source similarity"
     )
 
+    grounding_basis = (
+        "structured numerical working with approved topic source"
+        if numerical_evidence_used
+        else "semantic answer-source similarity"
+    )
+
     reasons = [
         (
             f"Question-source relevance {relevance_score}/35 "
             f"({relevance_basis})"
         ),
-        f"Answer grounding {grounding_score}/35",
+        (
+            f"Answer grounding {grounding_score}/35 "
+            f"({grounding_basis})"
+        ),
         f"Source availability {source_score}/15",
         f"Guardrail compliance {guardrail_score}/15",
     ]
