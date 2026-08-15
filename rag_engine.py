@@ -49,7 +49,7 @@ if not groq_model:
     try:
         groq_model = st.secrets["GROQ_MODEL"]
     except Exception:
-        groq_model = "llama-3.3-70b-versatile"
+        groq_model = ADVANCED_MODEL
 
 
 # -----------------------------
@@ -221,6 +221,81 @@ CAPABILITY_QUESTIONS = [
 ]
 
 
+SOURCE_QUESTIONS = [
+    "what is your source of knowledge",
+    "what are your sources",
+    "what is your knowledge source",
+    "where do you get your knowledge from",
+    "where does your information come from",
+    "what knowledge base do you use",
+    "what is your knowledge base",
+    "where do your answers come from",
+]
+
+
+MODEL_QUESTIONS = [
+    "what model are you using",
+    "which model are you using",
+    "what llm are you using",
+    "which llm are you using",
+    "what ai model do you use",
+    "which ai model do you use",
+    "why did you choose this model",
+    "why was this model selected",
+    "why did you use the advanced model",
+    "why did you use the simple model",
+]
+
+
+INTERNET_QUESTIONS = [
+    "can you access the internet",
+    "can you browse the internet",
+    "do you browse the web",
+    "do you search the web",
+    "are you connected to the internet",
+    "can you search online",
+    "can you get live information",
+    "can you get current information",
+]
+
+
+ASSURANCE_QUESTIONS = [
+    "what is assurance score",
+    "what does assurance score mean",
+    "how is assurance score calculated",
+    "how do you calculate assurance score",
+    "what is hallucination risk",
+    "what does hallucination risk mean",
+    "what does high confidence mean",
+    "what does medium confidence mean",
+    "what does low confidence mean",
+    "what is response confidence",
+    "how confident are you",
+]
+
+
+RELIABILITY_QUESTIONS = [
+    "are your answers always correct",
+    "are you always correct",
+    "can i trust your answers",
+    "is your answer guaranteed",
+    "are your answers guaranteed",
+    "can you make mistakes",
+    "can you be wrong",
+    "do you hallucinate",
+]
+
+
+PRIVACY_QUESTIONS = [
+    "do you store my data",
+    "do you save my questions",
+    "is my data private",
+    "do you remember my questions",
+    "what data do you store",
+    "what data do you collect",
+]
+
+
 # -----------------------------
 # Helper functions
 # -----------------------------
@@ -288,6 +363,36 @@ def is_capability_question(text):
         clean_text,
         CAPABILITY_QUESTIONS,
     )
+
+
+def is_source_question(text):
+    clean_text = normalize_text(text)
+    return contains_any_keyword(clean_text, SOURCE_QUESTIONS)
+
+
+def is_model_question(text):
+    clean_text = normalize_text(text)
+    return contains_any_keyword(clean_text, MODEL_QUESTIONS)
+
+
+def is_internet_question(text):
+    clean_text = normalize_text(text)
+    return contains_any_keyword(clean_text, INTERNET_QUESTIONS)
+
+
+def is_assurance_question(text):
+    clean_text = normalize_text(text)
+    return contains_any_keyword(clean_text, ASSURANCE_QUESTIONS)
+
+
+def is_reliability_question(text):
+    clean_text = normalize_text(text)
+    return contains_any_keyword(clean_text, RELIABILITY_QUESTIONS)
+
+
+def is_privacy_question(text):
+    clean_text = normalize_text(text)
+    return contains_any_keyword(clean_text, PRIVACY_QUESTIONS)
 
 
 def is_out_of_scope(text):
@@ -666,7 +771,153 @@ def generate_answer(student_question, langfuse_trace_id=None):
         }
 
     # -------------------------
-    # 5. Thanks
+    # 5. Knowledge-source transparency
+    # -------------------------
+    if is_source_question(student_question):
+        return {
+            "answer": (
+                "I answer supported Business Statistics questions using a curated "
+                "course knowledge base stored in this application. The knowledge base "
+                "contains approved topic-wise material on mean, median, mode, variance, "
+                "standard deviation, probability, normal distribution, hypothesis "
+                "testing, p-value, correlation, and simple linear regression. "
+                "For a supported question, I retrieve the most relevant course content "
+                "and use it as grounding for the response rather than answering from "
+                "unrestricted general knowledge."
+            ),
+            "source": "Knowledge-base transparency rule",
+            "model_used": "Rule-based",
+            "routing_type": "guardrail",
+            "routing_reason": "Knowledge-source question detected",
+            "confidence": "Not Applicable",
+            "latency_ms": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+        }
+
+    # -------------------------
+    # 6. Model / routing transparency
+    # -------------------------
+    if is_model_question(student_question):
+        return {
+            "answer": (
+                "This chatbot currently uses two Groq-hosted models through a "
+                "deterministic router: openai/gpt-oss-20b for clearly simple "
+                "conceptual questions and openai/gpt-oss-120b for numerical, "
+                "multi-step, analytical, comparison, or otherwise complex questions. "
+                "The Response details section shows the model, route, and routing "
+                "reason used for each generated answer."
+            ),
+            "source": "Model-routing transparency rule",
+            "model_used": "Rule-based",
+            "routing_type": "guardrail",
+            "routing_reason": "Model or routing question detected",
+            "confidence": "Not Applicable",
+            "latency_ms": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+        }
+
+    # -------------------------
+    # 7. Internet / live-data transparency
+    # -------------------------
+    if is_internet_question(student_question):
+        return {
+            "answer": (
+                "No. In this prototype I do not browse the public internet or fetch "
+                "live information while answering student questions. I answer from "
+                "the approved Business Statistics knowledge base connected to the "
+                "application. This keeps the learning scope controlled and reduces "
+                "unsupported answers."
+            ),
+            "source": "Internet-access transparency rule",
+            "model_used": "Rule-based",
+            "routing_type": "guardrail",
+            "routing_reason": "Internet-access question detected",
+            "confidence": "Not Applicable",
+            "latency_ms": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+        }
+
+    # -------------------------
+    # 8. Assurance / confidence transparency
+    # -------------------------
+    if is_assurance_question(student_question):
+        return {
+            "answer": (
+                "The runtime assurance score is a system-derived 0-100 indicator, "
+                "not the model's own confidence and not a percentage probability that "
+                "the answer is correct. It combines Question-source relevance (35), "
+                "Answer grounding (35), Source availability (15), and Guardrail "
+                "compliance (15). Scores of 90-100 are shown as Low hallucination "
+                "risk, 70-89 as Medium, and below 70 as High. The detailed response "
+                "panel shows the evidence used to calculate the score."
+            ),
+            "source": "Assurance transparency rule",
+            "model_used": "Rule-based",
+            "routing_type": "guardrail",
+            "routing_reason": "Assurance or confidence question detected",
+            "confidence": "Not Applicable",
+            "latency_ms": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+        }
+
+    # -------------------------
+    # 9. Reliability / limitations transparency
+    # -------------------------
+    if is_reliability_question(student_question):
+        return {
+            "answer": (
+                "My answers are not guaranteed to be correct. I reduce risk by using "
+                "approved course material, deterministic topic and model routing, "
+                "guardrails, runtime assurance scoring, and human-review feedback. "
+                "For numerical or important academic work, you should still verify "
+                "the calculation and course interpretation. A Low hallucination-risk "
+                "label means the system found strong supporting evidence; it does not "
+                "mean the answer is infallible."
+            ),
+            "source": "Reliability transparency rule",
+            "model_used": "Rule-based",
+            "routing_type": "guardrail",
+            "routing_reason": "Reliability or limitation question detected",
+            "confidence": "Not Applicable",
+            "latency_ms": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+        }
+
+    # -------------------------
+    # 10. Privacy / logging transparency
+    # -------------------------
+    if is_privacy_question(student_question):
+        return {
+            "answer": (
+                "This prototype may record operational traces, response metadata, "
+                "and feedback for observability, testing, and governance. You should "
+                "not enter passwords, financial information, health information, or "
+                "other sensitive personal data into the chatbot. The learning bot "
+                "does not need such information to answer Business Statistics questions."
+            ),
+            "source": "Privacy transparency rule",
+            "model_used": "Rule-based",
+            "routing_type": "guardrail",
+            "routing_reason": "Privacy or data-handling question detected",
+            "confidence": "Not Applicable",
+            "latency_ms": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+        }
+
+    # -------------------------
+    # 11. Thanks
     # -------------------------
     if is_thanks(student_question):
         return {
@@ -686,7 +937,7 @@ def generate_answer(student_question, langfuse_trace_id=None):
         }
 
     # -------------------------
-    # 6. Unclear input guardrail
+    # 12. Unclear input guardrail
     # Fixes evaluation TC15
     # -------------------------
     if is_unclear_input(student_question):
@@ -708,7 +959,7 @@ def generate_answer(student_question, langfuse_trace_id=None):
         }
 
     # -------------------------
-    # 7. Very short unclear input
+    # 13. Very short unclear input
     # -------------------------
     if len(question_clean) < 4:
         return {
@@ -729,7 +980,7 @@ def generate_answer(student_question, langfuse_trace_id=None):
         }
 
     # -------------------------
-    # 8. Obvious out-of-scope guardrail
+    # 14. Obvious out-of-scope guardrail
     # Fixes evaluation TC03 and TC06
     # -------------------------
     if is_obviously_out_of_scope(
@@ -754,7 +1005,7 @@ def generate_answer(student_question, langfuse_trace_id=None):
         }
 
     # -------------------------
-    # 9. Existing out-of-scope guardrail
+    # 15. Existing out-of-scope guardrail
     # -------------------------
     if is_out_of_scope(student_question):
         return {
@@ -774,7 +1025,7 @@ def generate_answer(student_question, langfuse_trace_id=None):
         }
 
     # -------------------------
-    # 10. Model routing
+    # 16. Model routing
     # -------------------------
     routing_result = route_model(
         student_question
@@ -796,7 +1047,7 @@ def generate_answer(student_question, langfuse_trace_id=None):
     )
 
     # -------------------------
-    # 11. RAG retrieval
+    # 17. RAG retrieval
     # -------------------------
     question_embedding = embedding_model.encode(
         student_question
@@ -989,7 +1240,7 @@ def generate_answer(student_question, langfuse_trace_id=None):
         }
 
     # -------------------------
-    # 12. LLM response
+    # 18. LLM response
     # -------------------------
     system_prompt = """
 You are an AI Student Doubt Resolution Bot for Business Statistics.
@@ -1012,6 +1263,11 @@ For numerical Business Statistics questions:
 - If required data is missing, ask the student for the missing value instead of assuming.
 - Do not invent numbers, examples, or missing values.
 - Keep calculations beginner-friendly and easy to follow.
+- Write formulas in plain readable text only. Do not use LaTeX commands such as \\frac, \\bar, \\mu, \\sigma, \\sqrt, or display delimiters like [ ... ].
+- Prefer readable notation such as: z = (x_bar - mu_0) / (sigma / sqrt(n)).
+- For hypothesis tests, do not describe alpha (for example 0.05) as the probability that this specific conclusion is wrong or as the probability of this observed result.
+- Explain alpha as the pre-selected Type I error rate / significance threshold used by the test procedure when the null hypothesis is true.
+- If a p-value is calculated, distinguish it clearly from alpha.
 
 Use this exact answer format:
 
@@ -1068,7 +1324,7 @@ Course context:
                     },
                 ],
                 temperature=0,
-                max_tokens=850,
+                max_completion_tokens=1100,
             )
         )
 

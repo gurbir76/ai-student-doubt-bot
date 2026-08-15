@@ -1,8 +1,8 @@
 import re
 
 
-BASIC_MODEL = "llama-3.1-8b-instant"
-ADVANCED_MODEL = "llama-3.3-70b-versatile"
+BASIC_MODEL = "openai/gpt-oss-20b"
+ADVANCED_MODEL = "openai/gpt-oss-120b"
 
 
 SIMPLE_CONCEPT_KEYWORDS = [
@@ -159,7 +159,9 @@ def route_model(question: str) -> dict:
 
     if (
         has_simple_keyword
-        and topic_count <= 1
+        and not has_comparison_keyword
+        and not multi_part
+        and not has_numbers
         and len(clean_question.split()) <= 15
     ):
         return {

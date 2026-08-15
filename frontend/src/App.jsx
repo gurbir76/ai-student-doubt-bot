@@ -1,5 +1,6 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import VisualExplanation from "./VisualExplanation.jsx";
 import "./App.css";
 import "./VisualExplanation.css";
@@ -182,20 +183,20 @@ function App() {
     }
   };
 
-  const showFullSolution = async () => {
+  const showFullSolution = async (attemptOverride = "") => {
     if (!learningMode?.question) {
       return;
     }
+
+    const attemptToCompare =
+      attemptOverride.trim() ||
+      (attemptSubmitted ? studentAttempt.trim() : "");
 
     const data = await getFullSolution(
       learningMode.question
     );
 
-    if (
-      data &&
-      attemptSubmitted &&
-      studentAttempt.trim()
-    ) {
+    if (data && attemptToCompare) {
       try {
         const response = await fetch(
           `${API_BASE_URL}/api/learning/compare`,
@@ -206,7 +207,7 @@ function App() {
             },
             body: JSON.stringify({
               question: learningMode.question,
-              student_attempt: studentAttempt.trim(),
+              student_attempt: attemptToCompare,
               full_solution: data.answer,
             }),
           }
@@ -237,8 +238,10 @@ function App() {
     });
   };
 
-  const submitAttempt = () => {
-    if (!studentAttempt.trim()) {
+  const submitAttempt = async () => {
+    const cleanAttempt = studentAttempt.trim();
+
+    if (!cleanAttempt) {
       setError("Please enter your attempt before submitting.");
       return;
     }
@@ -246,10 +249,7 @@ function App() {
     setError("");
     setAttemptSubmitted(true);
 
-    setLearningMode({
-      ...learningMode,
-      stage: "attempt-recorded",
-    });
+    await showFullSolution(cleanAttempt);
   };
 
   const submitFeedback = async (feedbackValue) => {
@@ -484,7 +484,7 @@ function App() {
                   </div>
 
                   <div className="markdown-answer">
-                    <ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {entry.result?.answer ?? ""}
                     </ReactMarkdown>
                   </div>
@@ -495,7 +495,7 @@ function App() {
                         <span>↺</span>
                         <strong>Reflection on your attempt</strong>
                       </div>
-                      <ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {entry.reflection}
                       </ReactMarkdown>
                     </div>
@@ -642,7 +642,7 @@ function App() {
                         className="primary-action"
                         onClick={submitAttempt}
                       >
-                        Submit Attempt
+                        Submit & Compare
                       </button>
 
                       <button
@@ -717,7 +717,7 @@ function App() {
                 </div>
 
                 <div className="markdown-answer">
-                  <ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
                     {result.answer}
                   </ReactMarkdown>
                 </div>
@@ -728,7 +728,7 @@ function App() {
                       <span>↺</span>
                       <strong>Reflection on your attempt</strong>
                     </div>
-                    <ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {reflection}
                     </ReactMarkdown>
                   </div>
